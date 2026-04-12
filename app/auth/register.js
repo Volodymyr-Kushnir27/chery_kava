@@ -11,6 +11,8 @@ import {
 import { router } from 'expo-router';
 import { registerUser } from '../../src/services/authService';
 import { validateEmail, normalizeUAPhone } from '../../src/utils/validation';
+import { colors, metrics } from '../../src/constants/theme';
+import AuthTopBar from '../../src/components/AuthTopBar';
 
 export default function RegisterScreen() {
   const [form, setForm] = useState({
@@ -28,7 +30,6 @@ export default function RegisterScreen() {
     phone: '',
     email: '',
     password: '',
-    referralCode: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -48,52 +49,43 @@ export default function RegisterScreen() {
       phone: '',
       email: '',
       password: '',
-      referralCode: '',
     };
 
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
     const email = form.email.trim().toLowerCase();
-    const password = form.password;
     const normalizedPhone = normalizeUAPhone(form.phone);
 
-    if (!firstName) {
-      nextErrors.firstName = "Введіть ім'я";
-    }
-
-    if (!lastName) {
-      nextErrors.lastName = 'Введіть прізвище';
-    }
+    if (!form.firstName.trim()) nextErrors.firstName = "Введіть ім'я";
+    if (!form.lastName.trim()) nextErrors.lastName = 'Введіть прізвище';
 
     if (!form.phone.trim()) {
       nextErrors.phone = 'Введіть номер телефону';
     } else if (!normalizedPhone) {
-      nextErrors.phone = 'Введіть коректний український номер: +380XXXXXXXXX або 0XXXXXXXXX';
+      nextErrors.phone = 'Формат: +380XXXXXXXXX або 0XXXXXXXXX';
     }
 
     if (!email) {
       nextErrors.email = 'Введіть email';
     } else if (!validateEmail(email)) {
-      nextErrors.email = 'Введіть коректний email';
+      nextErrors.email = 'Некоректний email';
     }
 
-    if (!password) {
+    if (!form.password) {
       nextErrors.password = 'Введіть пароль';
-    } else if (password.length < 6) {
-      nextErrors.password = 'Пароль має містити мінімум 6 символів';
+    } else if (form.password.length < 6) {
+      nextErrors.password = 'Мінімум 6 символів';
     }
 
     setErrors(nextErrors);
 
     return {
-      isValid: Object.values(nextErrors).every((value) => !value),
-      normalizedPhone,
+      isValid: Object.values(nextErrors).every((v) => !v),
       email,
+      normalizedPhone,
     };
   }
 
   async function handleRegister() {
-    const { isValid, normalizedPhone, email } = validateForm();
+    const { isValid, email, normalizedPhone } = validateForm();
 
     if (!isValid) return;
 
@@ -110,14 +102,11 @@ export default function RegisterScreen() {
       });
 
       if (error) {
-        Alert.alert('Помилка реєстрації', error.message);
+        Alert.alert('Помилка реєстрації', error.message || 'Не вдалося створити акаунт');
         return;
       }
 
-      Alert.alert(
-        'Готово',
-        'Акаунт створено. Перевір пошту для підтвердження email.'
-      );
+      Alert.alert('Готово', 'Акаунт створено. Перевір пошту для підтвердження email.');
 
       router.replace({
         pathname: '/auth/verify-email',
@@ -136,12 +125,16 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <AuthTopBar />
+
         <Text style={styles.title}>Реєстрація</Text>
+        <Text style={styles.subtitle}>Створіть акаунт для бонусної системи</Text>
 
         <TextInput
           style={inputStyle(!!errors.firstName)}
           placeholder="Ім'я"
+          placeholderTextColor={colors.textMuted}
           value={form.firstName}
           onChangeText={(value) => updateField('firstName', value)}
         />
@@ -150,6 +143,7 @@ export default function RegisterScreen() {
         <TextInput
           style={inputStyle(!!errors.lastName)}
           placeholder="Прізвище"
+          placeholderTextColor={colors.textMuted}
           value={form.lastName}
           onChangeText={(value) => updateField('lastName', value)}
         />
@@ -158,6 +152,7 @@ export default function RegisterScreen() {
         <TextInput
           style={inputStyle(!!errors.phone)}
           placeholder="Телефон (+380... або 0...)"
+          placeholderTextColor={colors.textMuted}
           value={form.phone}
           keyboardType="phone-pad"
           onChangeText={(value) => updateField('phone', value)}
@@ -167,6 +162,7 @@ export default function RegisterScreen() {
         <TextInput
           style={inputStyle(!!errors.email)}
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           value={form.email}
           autoCapitalize="none"
           keyboardType="email-address"
@@ -177,6 +173,7 @@ export default function RegisterScreen() {
         <TextInput
           style={inputStyle(!!errors.password)}
           placeholder="Пароль"
+          placeholderTextColor={colors.textMuted}
           value={form.password}
           secureTextEntry
           onChangeText={(value) => updateField('password', value)}
@@ -186,6 +183,7 @@ export default function RegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="Реферальний код (необов'язково)"
+          placeholderTextColor={colors.textMuted}
           value={form.referralCode}
           autoCapitalize="characters"
           onChangeText={(value) => updateField('referralCode', value)}
@@ -208,51 +206,61 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg,
   },
   container: {
-    padding: 20,
-    gap: 8,
+    padding: metrics.screenPadding,
+    paddingBottom: 80,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 12,
+    color: colors.text,
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: 15,
+    marginTop: 8,
+    marginBottom: 18,
   },
   input: {
+    minHeight: 52,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    color: colors.text,
     paddingHorizontal: 14,
-    paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    marginBottom: 10,
   },
   inputError: {
-    borderColor: '#d93025',
+    borderColor: colors.danger,
   },
   errorText: {
-    color: '#d93025',
-    fontSize: 13,
-    marginTop: -2,
-    marginBottom: 4,
+    color: colors.danger,
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   button: {
-    backgroundColor: '#2b2118',
-    borderRadius: 12,
-    paddingVertical: 14,
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: colors.cherry,
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+    marginTop: 8,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   link: {
     textAlign: 'center',
-    marginTop: 14,
-    color: '#6b4f3a',
-    fontSize: 15,
+    color: colors.textSoft,
+    fontSize: 14,
+    marginTop: 16,
   },
 });

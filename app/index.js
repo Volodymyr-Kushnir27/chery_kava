@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { supabase } from '../src/lib/supabase';
+import { colors } from '../src/constants/theme';
 
 export default function IndexPage() {
   const [loading, setLoading] = useState(true);
@@ -11,13 +12,9 @@ export default function IndexPage() {
     let mounted = true;
 
     async function loadSession() {
-      const { data, error } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
 
       if (!mounted) return;
-
-      if (error) {
-        console.log('getSession error:', error.message);
-      }
 
       setSession(data?.session ?? null);
       setLoading(false);
@@ -38,8 +35,15 @@ export default function IndexPage() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" />
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.cherry} />
       </View>
     );
   }

@@ -1,15 +1,19 @@
 export function validateEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
-export function normalizeUAPhone(input) {
-  if (!input) return null;
+export function normalizeUAPhone(phone) {
+  const raw = String(phone || '').replace(/[^\d+]/g, '');
 
-  const cleaned = String(input).replace(/[^\d+]/g, '');
+  if (!raw) return '';
 
-  if (/^\+380\d{9}$/.test(cleaned)) return cleaned;
-  if (/^380\d{9}$/.test(cleaned)) return `+${cleaned}`;
-  if (/^0\d{9}$/.test(cleaned)) return `+38${cleaned}`;
+  if (raw.startsWith('+380') && raw.length === 13) return raw;
 
-  return null;
+  if (raw.startsWith('380') && raw.length === 12) return `+${raw}`;
+
+  if (raw.startsWith('0') && raw.length === 10) {
+    return `+38${raw}`;
+  }
+
+  return '';
 }
