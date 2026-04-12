@@ -23,7 +23,7 @@ function HeaderLogo() {
 }
 
 function HeaderBeans() {
-  const balance = 7; // поки статично, далі можна підключити живий баланс
+  const balance = 7;
 
   return (
     <View style={styles.headerBeans}>
@@ -49,19 +49,16 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         headerTitle: () => <HeaderBrand />,
         headerTitleAlign: 'center',
-
         headerLeft: () => (
           <View style={styles.headerLeftWrap}>
             <HeaderLogo />
           </View>
         ),
-
         headerRight: () => (
           <View style={styles.headerRightWrap}>
             <HeaderBeans />
           </View>
         ),
-
         tabBarStyle: {
           backgroundColor: colors.bg,
           borderTopColor: colors.white08,
@@ -89,7 +86,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="loyalty"
         options={{
@@ -99,7 +95,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="history"
         options={{
@@ -109,7 +104,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="news"
         options={{
@@ -119,7 +113,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="profile"
         options={{
@@ -137,35 +130,29 @@ const styles = StyleSheet.create({
   headerLeftWrap: {
     marginLeft: 14,
   },
-
   headerRightWrap: {
     marginRight: 14,
   },
-
   headerLogo: {
     width: 34,
     height: 34,
   },
-
   brandWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   brandLine: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 1.3,
   },
-
   brandTagline: {
     color: colors.textSoft,
     fontSize: 11,
     fontWeight: '500',
     marginTop: 3,
   },
-
   headerBeans: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -177,12 +164,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
   },
-
   beanIcon: {
     width: 18,
     height: 18,
   },
-
   beanText: {
     color: colors.text,
     fontSize: 13,

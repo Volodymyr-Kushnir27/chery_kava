@@ -1,266 +1,205 @@
 import { useState } from 'react';
 import {
-  Alert,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
+  Pressable,
+  StyleSheet,
+  Alert,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { registerUser } from '../../src/services/authService';
-import { validateEmail, normalizeUAPhone } from '../../src/utils/validation';
-import { colors, metrics } from '../../src/constants/theme';
-import AuthTopBar from '../../src/components/AuthTopBar';
+import { supabase } from '../../src/lib/supabase';
+import { colors } from '../../src/constants/theme';
 
 export default function RegisterScreen() {
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    first_name: '',
+    last_name: '',
     phone: '',
     email: '',
     password: '',
-    referralCode: '',
+    referral_code: '',
+    birth_date: '',
   });
 
-  const [errors, setErrors] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-    password: '',
-  });
-
-  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   function updateField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }));
-
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   }
 
-  function validateForm() {
-    const nextErrors = {
-      firstName: '',
-      lastName: '',
-      phone: '',
-      email: '',
-      password: '',
-    };
+  function validate() {
+    const e = {};
 
-    const email = form.email.trim().toLowerCase();
-    const normalizedPhone = normalizeUAPhone(form.phone);
+    if (!form.first_name.trim()) e.first_name = "Введіть ім'я";
+    if (!form.last_name.trim()) e.last_name = 'Введіть прізвище';
 
-    if (!form.firstName.trim()) nextErrors.firstName = "Введіть ім'я";
-    if (!form.lastName.trim()) nextErrors.lastName = 'Введіть прізвище';
+    const phone = normalizePhone(form.phone);
+    if (!phone) e.phone = 'Формат телефону неправильний';
 
-    if (!form.phone.trim()) {
-      nextErrors.phone = 'Введіть номер телефону';
-    } else if (!normalizedPhone) {
-      nextErrors.phone = 'Формат: +380XXXXXXXXX або 0XXXXXXXXX';
-    }
+    const birth = normalizeBirthDate(form.birth_date);
+    if (!birth) e.birth_date = 'Формат: 27.07.1996';
 
-    if (!email) {
-      nextErrors.email = 'Введіть email';
-    } else if (!validateEmail(email)) {
-      nextErrors.email = 'Некоректний email';
-    }
+    if (!form.email.includes('@')) e.email = 'Невірний email';
+    if (form.password.length < 6) e.password = 'Мінімум 6 символів';
 
-    if (!form.password) {
-      nextErrors.password = 'Введіть пароль';
-    } else if (form.password.length < 6) {
-      nextErrors.password = 'Мінімум 6 символів';
-    }
-
-    setErrors(nextErrors);
+    setErrors(e);
 
     return {
-      isValid: Object.values(nextErrors).every((v) => !v),
-      email,
-      normalizedPhone,
+      valid: Object.keys(e).length === 0,
+      phone,
+      birth,
     };
   }
 
   async function handleRegister() {
-    const { isValid, email, normalizedPhone } = validateForm();
+    const { valid, phone, birth } = validate();
+    if (!valid) return;
 
-    if (!isValid) return;
+    const { error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
+          first_name: form.first_name,
+          last_name: form.last_name,
+          phone: phone,
+          birth_date: birth,
+          referral_code: form.referral_code || null,
+        },
+      },
+    });
 
-    try {
-      setLoading(true);
-
-      const { error } = await registerUser({
-        email,
-        password: form.password,
-        phone: normalizedPhone,
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        referralCode: form.referralCode.trim().toUpperCase(),
-      });
-
-      if (error) {
-        Alert.alert('Помилка реєстрації', error.message || 'Не вдалося створити акаунт');
-        return;
-      }
-
-      Alert.alert('Готово', 'Акаунт створено. Перевір пошту для підтвердження email.');
-
-      router.replace({
-        pathname: '/auth/verify-email',
-        params: { email },
-      });
-    } catch (e) {
-      Alert.alert('Помилка', e.message || 'Щось пішло не так');
-    } finally {
-      setLoading(false);
+    if (error) {
+      Alert.alert('Помилка', error.message);
+      return;
     }
-  }
 
-  function inputStyle(hasError) {
-    return [styles.input, hasError && styles.inputError];
+    Alert.alert('Успіх', 'Перевір email для підтвердження');
+    router.replace('/auth/login');
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <AuthTopBar />
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Реєстрація</Text>
 
-        <Text style={styles.title}>Реєстрація</Text>
-        <Text style={styles.subtitle}>Створіть акаунт для бонусної системи</Text>
+      <Input label="Ім’я" value={form.first_name} onChange={(v) => updateField('first_name', v)} error={errors.first_name} />
+      <Input label="Прізвище" value={form.last_name} onChange={(v) => updateField('last_name', v)} error={errors.last_name} />
+      <Input label="Телефон" value={form.phone} onChange={(v) => updateField('phone', v)} error={errors.phone} />
+      
+      <Input
+        label="Дата народження"
+        value={form.birth_date}
+        onChange={(v) => updateField('birth_date', maskDate(v))}
+        error={errors.birth_date}
+        placeholder="27.07.1996"
+      />
 
-        <TextInput
-          style={inputStyle(!!errors.firstName)}
-          placeholder="Ім'я"
-          placeholderTextColor={colors.textMuted}
-          value={form.firstName}
-          onChangeText={(value) => updateField('firstName', value)}
-        />
-        {!!errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+      <Input label="Email" value={form.email} onChange={(v) => updateField('email', v)} error={errors.email} />
+      <Input label="Пароль" value={form.password} onChange={(v) => updateField('password', v)} error={errors.password} secure />
 
-        <TextInput
-          style={inputStyle(!!errors.lastName)}
-          placeholder="Прізвище"
-          placeholderTextColor={colors.textMuted}
-          value={form.lastName}
-          onChangeText={(value) => updateField('lastName', value)}
-        />
-        {!!errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+      <Input label="Реферальний код (необовʼязково)" value={form.referral_code} onChange={(v) => updateField('referral_code', v)} />
 
-        <TextInput
-          style={inputStyle(!!errors.phone)}
-          placeholder="Телефон (+380... або 0...)"
-          placeholderTextColor={colors.textMuted}
-          value={form.phone}
-          keyboardType="phone-pad"
-          onChangeText={(value) => updateField('phone', value)}
-        />
-        {!!errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
-
-        <TextInput
-          style={inputStyle(!!errors.email)}
-          placeholder="Email"
-          placeholderTextColor={colors.textMuted}
-          value={form.email}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          onChangeText={(value) => updateField('email', value)}
-        />
-        {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-
-        <TextInput
-          style={inputStyle(!!errors.password)}
-          placeholder="Пароль"
-          placeholderTextColor={colors.textMuted}
-          value={form.password}
-          secureTextEntry
-          onChangeText={(value) => updateField('password', value)}
-        />
-        {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Реферальний код (необов'язково)"
-          placeholderTextColor={colors.textMuted}
-          value={form.referralCode}
-          autoCapitalize="characters"
-          onChangeText={(value) => updateField('referralCode', value)}
-        />
-
-        <Pressable style={styles.button} onPress={handleRegister} disabled={loading}>
-          <Text style={styles.buttonText}>
-            {loading ? 'Створення...' : 'Зареєструватися'}
-          </Text>
-        </Pressable>
-
-        <Pressable onPress={() => router.push('/auth/login')}>
-          <Text style={styles.link}>Вже є акаунт? Увійти</Text>
-        </Pressable>
-      </ScrollView>
+      <Pressable style={styles.button} onPress={handleRegister}>
+        <Text style={styles.buttonText}>Зареєструватись</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
 
+function Input({ label, value, onChange, error, placeholder, secure }) {
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={[styles.input, error && styles.error]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor="#777"
+        secureTextEntry={secure}
+      />
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+}
+
+function normalizePhone(phone) {
+  const p = phone.replace(/\D/g, '');
+
+  if (p.startsWith('380')) return `+${p}`;
+  if (p.startsWith('0')) return `+38${p}`;
+  return null;
+}
+
+function maskDate(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+}
+
+function normalizeBirthDate(value) {
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return null;
+
+  const [, d, m, y] = match;
+  return `${y}-${m}-${d}`;
+}
+
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1,
     backgroundColor: colors.bg,
+    padding: 20,
   },
-  container: {
-    padding: metrics.screenPadding,
-    paddingBottom: 80,
-  },
+
   title: {
+    fontSize: 26,
     color: colors.text,
-    fontSize: 32,
+    marginBottom: 20,
     fontWeight: '800',
   },
-  subtitle: {
+
+  label: {
     color: colors.textMuted,
-    fontSize: 15,
-    marginTop: 8,
-    marginBottom: 18,
+    marginBottom: 6,
   },
+
   input: {
-    minHeight: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.card,
+    borderRadius: 10,
+    padding: 12,
     color: colors.text,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#333',
   },
-  inputError: {
-    borderColor: colors.danger,
+
+  error: {
+    borderColor: 'red',
   },
+
   errorText: {
-    color: colors.danger,
+    color: 'red',
     fontSize: 12,
-    marginTop: -4,
-    marginBottom: 8,
-    marginLeft: 4,
+    marginTop: 4,
   },
+
   button: {
-    minHeight: 54,
-    borderRadius: 16,
     backgroundColor: colors.cherry,
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
   },
+
   buttonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  link: {
-    textAlign: 'center',
-    color: colors.textSoft,
-    fontSize: 14,
-    marginTop: 16,
+    color: '#fff',
+    fontWeight: '700',
   },
 });
