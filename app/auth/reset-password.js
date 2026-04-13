@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
@@ -14,28 +15,88 @@ import { supabase } from '../../src/lib/supabase';
 import { colors, metrics } from '../../src/constants/theme';
 import AuthTopBar from '../../src/components/AuthTopBar';
 
+function parseHashParams() {
+  if (typeof window === 'undefined') return {};
+
+  const hash = window.location.hash?.replace(/^#/, '') || '';
+  const params = new URLSearchParams(hash);
+
+  return {
+    access_token: params.get('access_token'),
+    refresh_token: params.get('refresh_token'),
+    type: params.get('type'),
+    error: params.get('error'),
+    error_code: params.get('error_code'),
+    error_description: params.get('error_description'),
+  };
+}
+
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [loading, setLoading] = useState(false);
+  const [bootLoading, setBootLoading] = useState(true);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword2, setShowPassword2] = useState(false);
 
   const [errorText, setErrorText] = useState('');
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-      }
-    });
-
-    return () => {
-      subscription?.subscription?.unsubscribe();
-    };
+    bootstrapRecovery();
   }, []);
 
+  async function bootstrapRecovery() {
+    try {
+      setBootLoading(true);
+      setErrorText('');
+
+      const {
+        access_token,
+        refresh_token,
+        error,
+        error_description,
+      } = parseHashParams();
+
+      if (error) {
+        setErrorText(error_description || 'Посилання для відновлення недійсне');
+        setSessionReady(false);
+        return;
+      }
+
+      if (!access_token || !refresh_token) {
+        setErrorText('Немає токенів для відновлення пароля');
+        setSessionReady(false);
+        return;
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (sessionError) {
+        setErrorText(sessionError.message || 'Не вдалося відкрити сесію відновлення');
+        setSessionReady(false);
+        return;
+      }
+
+      setSessionReady(true);
+    } catch (e) {
+      setErrorText(e.message || 'Не вдалося підготувати відновлення пароля');
+      setSessionReady(false);
+    } finally {
+      setBootLoading(false);
+    }
+  }
+
   async function handleChangePassword() {
+    if (!sessionReady) {
+      setErrorText('Сесія відновлення неактивна. Відкрийте лист повторно.');
+      return;
+    }
+
     if (password.length < 6) {
       setErrorText('Новий пароль має містити мінімум 6 символів');
       return;
@@ -60,12 +121,28 @@ export default function ResetPasswordScreen() {
       }
 
       Alert.alert('Готово', 'Пароль успішно змінено');
+
+      if (typeof window !== 'undefined') {
+        window.location.hash = '';
+      }
+
       router.replace('/auth/login');
     } catch (e) {
       setErrorText(e.message || 'Щось пішло не так');
     } finally {
       setLoading(false);
     }
+  }
+
+  if (bootLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.cherry} />
+          <Text style={styles.bootText}>Підготовка відновлення пароля...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -125,7 +202,14 @@ export default function ResetPasswordScreen() {
 
           {!!errorText && <Text style={styles.errorText}>{errorText}</Text>}
 
-          <Pressable style={styles.button} onPress={handleChangePassword} disabled={loading}>
+          <Pressable
+            style={[
+              styles.button,
+              (!sessionReady || loading) && styles.buttonDisabled,
+            ]}
+            onPress={handleChangePassword}
+            disabled={!sessionReady || loading}
+          >
             <Text style={styles.buttonText}>
               {loading ? 'Збереження...' : 'Змінити пароль'}
             </Text>
@@ -140,6 +224,18 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: colors.bg,
+  },
+  bootText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: 12,
   },
   container: {
     flex: 1,
@@ -204,6 +300,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cherry,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: colors.text,
