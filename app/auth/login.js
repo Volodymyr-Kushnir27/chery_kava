@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { loginUser } from '../../src/services/authService';
 import { validateEmail } from '../../src/utils/validation';
 import { colors, metrics } from '../../src/constants/theme';
@@ -17,16 +18,59 @@ import AuthTopBar from '../../src/components/AuthTopBar';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+    common: '',
+  });
+
+  function updateEmail(value) {
+    setEmail(value);
+
+    if (errors.email || errors.common) {
+      setErrors((prev) => ({
+        ...prev,
+        email: '',
+        common: '',
+      }));
+    }
+  }
+
+  function updatePassword(value) {
+    setPassword(value);
+
+    if (errors.password || errors.common) {
+      setErrors((prev) => ({
+        ...prev,
+        password: '',
+        common: '',
+      }));
+    }
+  }
 
   async function handleLogin() {
-    if (!email.trim() || !password) {
-      Alert.alert('Помилка', 'Введи email і пароль');
-      return;
+    const nextErrors = {
+      email: '',
+      password: '',
+      common: '',
+    };
+
+    if (!email.trim()) {
+      nextErrors.email = 'Введіть email';
+    } else if (!validateEmail(email.trim())) {
+      nextErrors.email = 'Введіть коректний email';
     }
 
-    if (!validateEmail(email)) {
-      Alert.alert('Помилка', 'Введи коректний email');
+    if (!password) {
+      nextErrors.password = 'Введіть пароль';
+    }
+
+    if (nextErrors.email || nextErrors.password) {
+      setErrors(nextErrors);
       return;
     }
 
@@ -39,13 +83,21 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert('Помилка входу', error.message);
+        setErrors({
+          email: '',
+          password: 'Неправильно введено логін або пароль',
+          common: 'Неправильно введено логін або пароль',
+        });
         return;
       }
 
       router.replace('/(tabs)/menu');
     } catch (e) {
-      Alert.alert('Помилка', e.message || 'Щось пішло не так');
+      setErrors({
+        email: '',
+        password: 'Неправильно введено логін або пароль',
+        common: 'Неправильно введено логін або пароль',
+      });
     } finally {
       setLoading(false);
     }
@@ -62,24 +114,53 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
-            value={email}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            onChangeText={setEmail}
-          />
+          <View>
+            <TextInput
+              style={[styles.input, !!errors.email && styles.inputError]}
+              placeholder="Email"
+              placeholderTextColor={colors.textMuted}
+              value={email}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              onChangeText={updateEmail}
+            />
+            {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Пароль"
-            placeholderTextColor={colors.textMuted}
-            value={password}
-            secureTextEntry
-            onChangeText={setPassword}
-          />
+          <View>
+            <View style={[styles.passwordWrap, !!errors.password && styles.inputError]}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Пароль"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                secureTextEntry={!showPassword}
+                onChangeText={updatePassword}
+              />
+
+              <Pressable
+                style={styles.eyeButton}
+                onPress={() => setShowPassword((prev) => !prev)}
+              >
+                <MaterialIcons
+                  name={showPassword ? 'visibility-off' : 'visibility'}
+                  size={22}
+                  color={colors.textMuted}
+                />
+              </Pressable>
+            </View>
+
+            {!!errors.password && (
+              <Text style={styles.errorText}>{errors.password}</Text>
+            )}
+          </View>
+
+          <Pressable
+            style={styles.forgotWrap}
+            onPress={() => router.push('/auth/forgot-password')}
+          >
+            <Text style={styles.forgotText}>Забули пароль?</Text>
+          </Pressable>
 
           <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
             <Text style={styles.buttonText}>
@@ -136,6 +217,44 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingHorizontal: 14,
     fontSize: 16,
+  },
+  passwordWrap: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 14,
+    paddingRight: 8,
+  },
+  passwordInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
+  },
+  eyeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputError: {
+    borderColor: colors.cherry,
+  },
+  errorText: {
+    color: colors.cherry,
+    fontSize: 12,
+    marginTop: 6,
+  },
+  forgotWrap: {
+    alignSelf: 'flex-end',
+  },
+  forgotText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    fontWeight: '600',
   },
   button: {
     marginTop: 6,

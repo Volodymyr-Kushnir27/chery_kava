@@ -100,9 +100,7 @@ export default function LoyaltyScreen() {
         location_id: payload.location_id,
       });
 
-      if (rpcError) {
-        throw rpcError;
-      }
+      if (rpcError) throw rpcError;
 
       if (!data?.success) {
         Alert.alert("Увага", data?.message || "Не вдалося зарахувати візит");
@@ -150,25 +148,6 @@ export default function LoyaltyScreen() {
           </View>
         )}
 
-        <View style={styles.qrCard}>
-          <View style={styles.qrBox}>
-            {snapshot?.qrValue ? (
-              <QRCode
-                value={snapshot.qrValue}
-                size={180}
-                backgroundColor="white"
-                color="black"
-              />
-            ) : (
-              <Text style={styles.qrFallback}>QR</Text>
-            )}
-          </View>
-
-          <Text style={styles.qrHint}>
-            Покажіть цей код бариста для списання зерен або ідентифікації клієнта.
-          </Text>
-        </View>
-
         <View style={styles.statusCard}>
           <Text style={styles.statusEmoji}>{hasVisitedToday ? "☕️😊" : "☕️😕"}</Text>
           <Text style={styles.statusTitle}>
@@ -182,6 +161,10 @@ export default function LoyaltyScreen() {
               : "Приходьте до нас та скануйте код дня, щоб отримати зерно."}
           </Text>
         </View>
+
+        <Pressable style={styles.primaryButton} onPress={handleOpenScanner}>
+          <Text style={styles.primaryButtonText}>Сканувати код</Text>
+        </Pressable>
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Ваш баланс</Text>
@@ -215,9 +198,24 @@ export default function LoyaltyScreen() {
           </Text>
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleOpenScanner}>
-          <Text style={styles.primaryButtonText}>Сканувати код</Text>
-        </Pressable>
+        <View style={styles.qrCard}>
+          <View style={styles.qrBox}>
+            {snapshot?.qrValue ? (
+              <QRCode
+                value={snapshot.qrValue}
+                size={180}
+                backgroundColor="white"
+                color="black"
+              />
+            ) : (
+              <Text style={styles.qrFallback}>QR</Text>
+            )}
+          </View>
+
+          <Text style={styles.qrHint}>
+            Покажіть цей код бариста для списання зерен або ідентифікації клієнта.
+          </Text>
+        </View>
 
         <Pressable
           style={styles.secondaryButton}
@@ -323,34 +321,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
   },
-  qrCard: {
-    backgroundColor: colors.card2,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 18,
-    alignItems: "center",
-  },
-  qrBox: {
-    width: 220,
-    height: 220,
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  qrFallback: {
-    fontSize: 56,
-    fontWeight: "900",
-    color: "#000",
-  },
-  qrHint: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: "center",
-    marginTop: 14,
-  },
   statusCard: {
     backgroundColor: colors.card2,
     borderRadius: 22,
@@ -435,6 +405,34 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 14,
     textAlign: "center",
+  },
+  qrCard: {
+    backgroundColor: colors.card2,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 18,
+    alignItems: "center",
+  },
+  qrBox: {
+    width: 220,
+    height: 220,
+    borderRadius: 20,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrFallback: {
+    fontSize: 56,
+    fontWeight: "900",
+    color: "#000",
+  },
+  qrHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 14,
   },
   primaryButton: {
     minHeight: 56,
