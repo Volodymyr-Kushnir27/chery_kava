@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,6 +47,8 @@ export default function LoyaltyScreen() {
   const [claiming, setClaiming] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
+  const scanLockRef = useRef(false);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -79,28 +81,46 @@ export default function LoyaltyScreen() {
       }
     }
 
+    scanLockRef.current = false;
     setScannerOpen(true);
   }
 
+  async function handleCloseScanner() {
+    scanLockRef.current = false;
+    setScannerOpen(false);
+  }
+
   async function handleBarcodeScanned(result) {
-    if (claiming) return;
+    if (scanLockRef.current || claiming) return;
+
+    scanLockRef.current = true;
 
     const payload = parseDailyVisitQr(result?.data);
 
     if (!payload) {
       Alert.alert("Помилка", "Це не QR коду дня.");
+      scanLockRef.current = false;
       return;
     }
 
     try {
       setClaiming(true);
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Сесія недійсна. Увійдіть у додаток ще раз.");
+      }
+
       const { data, error: rpcError } = await supabase.rpc("claim_daily_visit", {
         code_value: payload.code_value,
         location_id: payload.location_id,
       });
 
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        throw new Error(rpcError.message || "Не вдалося зарахувати візит");
+      }
 
       if (!data?.success) {
         Alert.alert("Увага", data?.message || "Не вдалося зарахувати візит");
@@ -111,9 +131,23 @@ export default function LoyaltyScreen() {
       setScannerOpen(false);
       await loadData();
     } catch (e) {
-      Alert.alert("Помилка", e?.message || "Не вдалося обробити сканування");
+      const msg = e?.message || "Не вдалося обробити сканування";
+
+      if (
+        msg.includes("Refresh Token") ||
+        msg.includes("JWT") ||
+        msg.includes("Auth session missing") ||
+        msg.includes("Сесія недійсна")
+      ) {
+        Alert.alert("Сесія завершилась", "Увійдіть у додаток ще раз.");
+      } else {
+        Alert.alert("Помилка", msg);
+      }
     } finally {
       setClaiming(false);
+      setTimeout(() => {
+        scanLockRef.current = false;
+      }, 1200);
     }
   }
 
@@ -230,12 +264,12 @@ export default function LoyaltyScreen() {
         </Pressable>
       </ScrollView>
 
-      <Modal visible={scannerOpen} animationType="slide" onRequestClose={() => setScannerOpen(false)}>
+      <Modal visible={scannerOpen} animationType="slide" onRequestClose={handleCloseScanner}>
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Сканування коду дня</Text>
 
-            <Pressable style={styles.closeBtn} onPress={() => setScannerOpen(false)}>
+            <Pressable style={styles.closeBtn} onPress={handleCloseScanner}>
               <Text style={styles.closeBtnText}>Закрити</Text>
             </Pressable>
           </View>
@@ -272,14 +306,8 @@ export default function LoyaltyScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  modalSafe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  modalSafe: { flex: 1, backgroundColor: colors.bg },
   center: {
     flex: 1,
     alignItems: "center",
@@ -329,9 +357,7 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: "center",
   },
-  statusEmoji: {
-    fontSize: 38,
-  },
+  statusEmoji: { fontSize: 38 },
   statusTitle: {
     color: colors.text,
     fontSize: 20,
@@ -353,10 +379,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,45,85,0.22)",
     padding: 18,
   },
-  balanceLabel: {
-    color: colors.textSoft,
-    fontSize: 14,
-  },
+  balanceLabel: { color: colors.textSoft, fontSize: 14 },
   balanceValue: {
     color: colors.text,
     fontSize: 34,
@@ -376,10 +399,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
   },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-  },
+  statLabel: { color: colors.textMuted, fontSize: 12 },
   statValue: {
     color: colors.text,
     fontSize: 20,
@@ -393,12 +413,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     flexWrap: "wrap",
   },
-  beanIcon: {
-    fontSize: 18,
-  },
-  beanInactive: {
-    opacity: 0.2,
-  },
+  beanIcon: { fontSize: 18 },
+  beanInactive: { opacity: 0.2 },
   balanceHint: {
     color: colors.textMuted,
     fontSize: 13,
@@ -489,9 +505,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  camera: {
-    flex: 1,
-  },
+  camera: { flex: 1 },
   claimingOverlay: {
     position: "absolute",
     left: 0,
