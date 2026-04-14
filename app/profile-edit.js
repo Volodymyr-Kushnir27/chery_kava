@@ -22,7 +22,6 @@ export default function ProfileEditScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-  const [birthDate, setBirthDate] = useState('');
 
   useEffect(() => {
     bootstrap();
@@ -42,7 +41,7 @@ export default function ProfileEditScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('first_name, last_name, phone, birth_date')
+        .select('first_name, last_name, phone')
         .eq('id', id)
         .maybeSingle();
 
@@ -51,10 +50,9 @@ export default function ProfileEditScreen() {
       setFirstName(data?.first_name || '');
       setLastName(data?.last_name || '');
       setPhone(data?.phone || '');
-      setBirthDate(data?.birth_date || '');
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося завантажити профіль');
-      router.back();
+      router.replace('/profile');
     } finally {
       setLoading(false);
     }
@@ -70,19 +68,22 @@ export default function ProfileEditScreen() {
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           phone: phone.trim() || null,
-          birth_date: birthDate.trim() || null,
         })
         .eq('id', userId);
 
       if (error) throw error;
 
       Alert.alert('Готово', 'Профіль оновлено');
-      router.back();
+      router.replace('/profile');
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося зберегти профіль');
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleCancel() {
+    router.replace('/profile');
   }
 
   if (loading) {
@@ -125,15 +126,7 @@ export default function ProfileEditScreen() {
           onChangeText={setPhone}
           placeholder="+380..."
           placeholderTextColor={colors.textMuted}
-        />
-
-        <Text style={styles.label}>Дата народження</Text>
-        <TextInput
-          style={styles.input}
-          value={birthDate}
-          onChangeText={setBirthDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textMuted}
+          keyboardType="phone-pad"
         />
 
         <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
@@ -142,7 +135,7 @@ export default function ProfileEditScreen() {
           </Text>
         </Pressable>
 
-        <Pressable style={styles.cancelButton} onPress={() => router.back()}>
+        <Pressable style={styles.cancelButton} onPress={handleCancel}>
           <Text style={styles.cancelButtonText}>Скасувати</Text>
         </Pressable>
       </ScrollView>
