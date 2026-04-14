@@ -15,7 +15,12 @@ import { colors, metrics } from '../../src/constants/theme';
 
 function formatDate(value) {
   if (!value) return '';
-  return new Date(value).toLocaleDateString('uk-UA');
+
+  try {
+    return new Date(value).toLocaleDateString('uk-UA');
+  } catch {
+    return value;
+  }
 }
 
 export default function NewsScreen() {
@@ -32,7 +37,7 @@ export default function NewsScreen() {
         .from('news_posts')
         .select('id, title, body, image_url, published_at, created_at')
         .eq('is_published', true)
-        .order('published_at', { ascending: false, nullsFirst: false })
+        .order('published_at', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -104,7 +109,7 @@ export default function NewsScreen() {
                   <Text style={styles.dateText}>{formatDate(item.published_at)}</Text>
                 )}
 
-                <Text style={styles.cardText}>{item.body}</Text>
+                <Text style={styles.cardText}>{item.body || ''}</Text>
               </View>
             </View>
           ))}

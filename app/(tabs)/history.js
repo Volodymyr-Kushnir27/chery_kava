@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Pressable,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
@@ -14,24 +14,28 @@ import { colors, metrics } from '../../src/constants/theme';
 
 function formatDateTime(value) {
   if (!value) return '—';
-  const d = new Date(value);
-  return d.toLocaleString('uk-UA', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
-function getTitle(item) {
-  const sign = item.direction === 'credit' ? '+' : '-';
-  return `${sign}${item.amount} зерен`;
+  try {
+    return new Date(value).toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return value;
+  }
 }
 
 function getAccent(item) {
   if (item.direction === 'credit') return colors.green;
   return colors.cherry;
+}
+
+function getTitle(item) {
+  const sign = item.direction === 'credit' ? '+' : '-';
+  return `${sign}${item.amount} зерен`;
 }
 
 function getTypeLabel(item) {

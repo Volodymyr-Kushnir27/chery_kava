@@ -27,7 +27,6 @@ function HeaderLogo() {
 function HeaderBeans() {
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState(null);
   const segments = useSegments();
 
   const loadBalance = useCallback(async () => {
@@ -40,10 +39,9 @@ function HeaderBeans() {
         throw authError;
       }
 
-      const uid = authData?.user?.id ?? null;
-      setUserId(uid);
+      const userId = authData?.user?.id;
 
-      if (!uid) {
+      if (!userId) {
         setBalance(0);
         return;
       }
@@ -51,7 +49,7 @@ function HeaderBeans() {
       const { data, error } = await supabase
         .from('profiles')
         .select('bean_balance')
-        .eq('id', uid)
+        .eq('id', userId)
         .maybeSingle();
 
       if (error) {
@@ -84,30 +82,6 @@ function HeaderBeans() {
       authListener?.subscription?.unsubscribe();
     };
   }, [loadBalance]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel(`profile-bean-balance-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${userId}`,
-        },
-        () => {
-          loadBalance();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, loadBalance]);
 
   return (
     <View style={styles.headerBeans}>
