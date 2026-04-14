@@ -1,6 +1,8 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useSegments } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '../../src/lib/supabase';
 import { colors } from '../../src/constants/theme';
 
 function HeaderBrand() {
@@ -23,7 +25,89 @@ function HeaderLogo() {
 }
 
 function HeaderBeans() {
-  const balance = 7;
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState(null);
+  const segments = useSegments();
+
+  const loadBalance = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+
+      if (authError) {
+        throw authError;
+      }
+
+      const uid = authData?.user?.id ?? null;
+      setUserId(uid);
+
+      if (!uid) {
+        setBalance(0);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('bean_balance')
+        .eq('id', uid)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      setBalance(data?.bean_balance ?? 0);
+    } catch (e) {
+      console.log('header balance error:', e?.message);
+      setBalance(0);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBalance();
+  }, [loadBalance]);
+
+  useEffect(() => {
+    loadBalance();
+  }, [segments, loadBalance]);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      loadBalance();
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [loadBalance]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`profile-bean-balance-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        () => {
+          loadBalance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, loadBalance]);
 
   return (
     <View style={styles.headerBeans}>
@@ -32,7 +116,11 @@ function HeaderBeans() {
         style={styles.beanIcon}
         resizeMode="contain"
       />
-      <Text style={styles.beanText}>{balance}</Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.text} />
+      ) : (
+        <Text style={styles.beanText}>{balance}</Text>
+      )}
     </View>
   );
 }
@@ -163,6 +251,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
+    minWidth: 58,
+    justifyContent: 'center',
   },
   beanIcon: {
     width: 18,
