@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -39,6 +40,7 @@ export default function StaffLocationsScreen() {
   const [address, setAddress] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
 
   useEffect(() => {
     bootstrap();
@@ -187,6 +189,57 @@ export default function StaffLocationsScreen() {
     }
   }
 
+  async function handleDelete(item) {
+    try {
+      setDeletingId(item.id);
+
+      const { error } = await supabase
+        .from('locations')
+        .delete()
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      if (editingId === item.id) {
+        resetForm();
+      }
+
+      setLocations((prev) => prev.filter((x) => x.id !== item.id));
+      Alert.alert('Готово', 'Локацію видалено');
+    } catch (e) {
+      Alert.alert(
+        'Помилка',
+        e?.message ||
+          'Не вдалося видалити локацію. Перевірте чи немає пов’язаних записів у меню, QR-кодах або інших таблицях.'
+      );
+    } finally {
+      setDeletingId('');
+    }
+  }
+
+  function confirmDelete(item) {
+    const message =
+      `Локація "${item.title || item.short_title || item.slug}" буде повністю видалена з БД.\n\n` +
+      `Цю дію не можна скасувати.`;
+
+    if (Platform.OS === 'web') {
+      const ok = window.confirm(message);
+      if (ok) {
+        handleDelete(item);
+      }
+      return;
+    }
+
+    Alert.alert('Видалити локацію?', message, [
+      { text: 'Скасувати', style: 'cancel' },
+      {
+        text: 'Видалити',
+        style: 'destructive',
+        onPress: () => handleDelete(item),
+      },
+    ]);
+  }
+
   if (checkingRole) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -215,7 +268,7 @@ export default function StaffLocationsScreen() {
         ListHeaderComponent={
           <View style={styles.headerContent}>
             <Text style={styles.title}>Локації</Text>
-            <Text style={styles.text}>Додавання, редагування і вимкнення локацій.</Text>
+            <Text style={styles.text}>Додавання, редагування, вимкнення і видалення локацій.</Text>
 
             <View style={styles.formCard}>
               <Text style={styles.formTitle}>
@@ -236,7 +289,7 @@ export default function StaffLocationsScreen() {
                 style={styles.input}
                 value={shortTitle}
                 onChangeText={setShortTitle}
-                placeholder="Наприклад: Kava Main"
+                placeholder="Наприклад: Main"
                 placeholderTextColor={colors.textMuted}
               />
 
@@ -268,7 +321,8 @@ export default function StaffLocationsScreen() {
 
             <Text style={styles.sectionTitle}>Існуючі локації</Text>
             <Text style={styles.sectionText}>
-              Натисніть “Редагувати” — форма зверху автоматично відкриється.
+              “Редагувати” відкриває форму зверху. “Вимкнути” ховає локацію з додатку.
+              “Видалити” стирає її з БД повністю.
             </Text>
           </View>
         }
@@ -302,6 +356,19 @@ export default function StaffLocationsScreen() {
               >
                 <Text style={styles.toggleButtonText}>
                   {item.is_active ? 'Вимкнути локацію' : 'Повернути в додаток'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.deleteButton,
+                  deletingId === item.id && styles.deleteButtonDisabled,
+                ]}
+                onPress={() => confirmDelete(item)}
+                disabled={deletingId === item.id}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {deletingId === item.id ? 'Видалення...' : 'Видалити локацію'}
                 </Text>
               </Pressable>
             </View>
@@ -417,6 +484,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     marginTop: 6,
+    lineHeight: 18,
   },
   card: {
     backgroundColor: colors.card2,
@@ -470,6 +538,23 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: {
     color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  deleteButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,59,48,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    color: '#FF6B6B',
     fontSize: 14,
     fontWeight: '800',
   },

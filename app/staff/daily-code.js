@@ -38,6 +38,7 @@ export default function DailyCodeScreen() {
       });
 
       if (error) throw error;
+
       setDailyCode(data || null);
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося отримати код дня');
@@ -45,6 +46,27 @@ export default function DailyCodeScreen() {
       setLoading(false);
     }
   }, []);
+
+  async function handleRefreshDailyCode() {
+    if (!selectedLocation?.id) return;
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.rpc('refresh_daily_code', {
+        p_location_id: selectedLocation.id,
+      });
+
+      if (error) throw error;
+
+      setDailyCode(data || null);
+      Alert.alert('Готово', 'Код дня оновлено');
+    } catch (e) {
+      Alert.alert('Помилка', e?.message || 'Не вдалося оновити код дня');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function bootstrap() {
     try {
@@ -79,6 +101,8 @@ export default function DailyCodeScreen() {
 
       if (firstLocation?.id) {
         await loadDailyCode(firstLocation.id);
+      } else {
+        setDailyCode(null);
       }
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося підготувати екран');
@@ -171,10 +195,13 @@ export default function DailyCodeScreen() {
         </View>
 
         <Pressable
-          style={styles.primaryButton}
-          onPress={() => loadDailyCode(selectedLocation?.id)}
+          style={[styles.primaryButton, loading && styles.buttonDisabled]}
+          onPress={handleRefreshDailyCode}
+          disabled={loading || !selectedLocation?.id}
         >
-          <Text style={styles.primaryButtonText}>Оновити код дня</Text>
+          <Text style={styles.primaryButtonText}>
+            {loading ? 'Оновлення...' : 'Оновити код дня'}
+          </Text>
         </Pressable>
 
         <Pressable
@@ -306,5 +333,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     fontWeight: '800',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });

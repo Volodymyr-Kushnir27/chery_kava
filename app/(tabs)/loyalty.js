@@ -47,6 +47,11 @@ export default function LoyaltyScreen() {
   const [claiming, setClaiming] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
+  const [statusBox, setStatusBox] = useState({
+    type: "",
+    text: "",
+  });
+
   const scanLockRef = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -82,64 +87,95 @@ export default function LoyaltyScreen() {
     }
 
     scanLockRef.current = false;
+    setStatusBox({ type: "", text: "" });
     setScannerOpen(true);
   }
 
-  async function handleCloseScanner() {
+  function handleCloseScanner() {
     scanLockRef.current = false;
     setScannerOpen(false);
   }
 
   async function handleBarcodeScanned(result) {
-  if (claiming) return;
+    if (claiming || scanLockRef.current) return;
+    scanLockRef.current = true;
 
-  const payload = parseDailyVisitQr(result?.data);
+    const payload = parseDailyVisitQr(result?.data);
 
-  if (!payload) {
-    Alert.alert("Помилка", "Це не QR коду дня.");
-    return;
-  }
-
-  try {
-    setClaiming(true);
-
-    const { data, error: rpcError } = await supabase.rpc("claim_daily_visit", {
-      code_value: payload.code_value,
-      location_id: payload.location_id,
-    });
-
-    if (rpcError) {
-      const msg = rpcError.message || "";
-
-      if (msg.includes("Only customer can claim visit")) {
-        throw new Error("Сканування коду дня доступне тільки для клієнтського акаунта.");
-      }
-
-      if (msg.includes("Profile not found")) {
-        throw new Error("Профіль користувача не знайдено.");
-      }
-
-      if (msg.includes("Not authenticated")) {
-        throw new Error("Сесія недійсна. Увійдіть ще раз.");
-      }
-
-      throw new Error(msg || "Не вдалося зарахувати візит");
-    }
-
-    if (!data?.success) {
-      Alert.alert("Увага", data?.message || "Не вдалося зарахувати візит");
+    if (!payload) {
+      setStatusBox({
+        type: "error",
+        text: "Це не QR коду дня.",
+      });
+      Alert.alert("Помилка", "Це не QR коду дня.");
+      scanLockRef.current = false;
       return;
     }
 
-    Alert.alert("Готово", data.message || "Зараховано +1 зерно");
+    // закриваємо камеру одразу, щоб не зависав UX
     setScannerOpen(false);
-    await loadData();
-  } catch (e) {
-    Alert.alert("Помилка", e?.message || "Не вдалося обробити сканування");
-  } finally {
-    setClaiming(false);
+
+    try {
+      setClaiming(true);
+      setStatusBox({
+        type: "info",
+        text: "Обробка сканування...",
+      });
+
+      const { data, error: rpcError } = await supabase.rpc("claim_daily_visit", {
+        code_value: payload.code_value,
+        location_id: payload.location_id,
+      });
+
+      console.log("claim_daily_visit rpcError:", rpcError);
+      console.log("claim_daily_visit data:", data);
+
+      if (rpcError) {
+        const msg = rpcError.message || "Помилка RPC";
+        setStatusBox({
+          type: "error",
+          text: msg,
+        });
+        Alert.alert("Помилка", msg);
+        return;
+      }
+
+      if (!data?.success) {
+        const msg = data?.message || "Не вдалося зарахувати візит";
+        setStatusBox({
+          type: "error",
+          text: msg,
+        });
+        Alert.alert("Увага", msg);
+        return;
+      }
+
+      const successMsg = data?.message || "Зараховано +1 зерно";
+
+      setStatusBox({
+        type: "success",
+        text: successMsg,
+      });
+
+      Alert.alert("Готово", successMsg);
+      await loadData();
+    } catch (e) {
+      const msg = e?.message || "Не вдалося обробити сканування";
+      console.log("handleBarcodeScanned error:", e);
+
+      setStatusBox({
+        type: "error",
+        text: msg,
+      });
+
+      Alert.alert("Помилка", msg);
+    } finally {
+      setClaiming(false);
+      setTimeout(() => {
+        scanLockRef.current = false;
+      }, 1000);
+    }
   }
-}
 
   if (loading) {
     return (
@@ -172,6 +208,19 @@ export default function LoyaltyScreen() {
           </View>
         )}
 
+        {!!statusBox.text && (
+          <View
+            style={[
+              styles.statusResultBox,
+              statusBox.type === "success" && styles.statusResultSuccess,
+              statusBox.type === "error" && styles.statusResultError,
+              statusBox.type === "info" && styles.statusResultInfo,
+            ]}
+          >
+            <Text style={styles.statusResultText}>{statusBox.text}</Text>
+          </View>
+        )}
+
         <View style={styles.statusCard}>
           <Text style={styles.statusEmoji}>{hasVisitedToday ? "☕️😊" : "☕️😕"}</Text>
           <Text style={styles.statusTitle}>
@@ -186,8 +235,14 @@ export default function LoyaltyScreen() {
           </Text>
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleOpenScanner}>
-          <Text style={styles.primaryButtonText}>Сканувати код</Text>
+        <Pressable
+          style={[styles.primaryButton, claiming && styles.buttonDisabled]}
+          onPress={handleOpenScanner}
+          disabled={claiming}
+        >
+          <Text style={styles.primaryButtonText}>
+            {claiming ? "Обробка..." : "Сканувати код"}
+          </Text>
         </Pressable>
 
         <View style={styles.balanceCard}>
@@ -205,21 +260,6 @@ export default function LoyaltyScreen() {
               <Text style={styles.statValue}>{progressToNext} / 10</Text>
             </View>
           </View>
-
-          <View style={styles.beansRow}>
-            {Array.from({ length: 10 }).map((_, index) => {
-              const active = index < progressToNext;
-              return (
-                <Text key={index} style={[styles.beanIcon, !active && styles.beanInactive]}>
-                  🫘
-                </Text>
-              );
-            })}
-          </View>
-
-          <Text style={styles.balanceHint}>
-            Зерна накопичуються як валюта. Списання можливе по 10, 20, 30, 40... до 100 зерен.
-          </Text>
         </View>
 
         <View style={styles.qrCard}>
@@ -240,18 +280,6 @@ export default function LoyaltyScreen() {
             Покажіть цей код бариста для списання зерен або ідентифікації клієнта.
           </Text>
         </View>
-
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={() =>
-            Alert.alert(
-              "Інформація",
-              "Списання виконує бариста або адміністратор через staff/redeem.",
-            )
-          }
-        >
-          <Text style={styles.secondaryButtonText}>Списати зерна</Text>
-        </Pressable>
       </ScrollView>
 
       <Modal visible={scannerOpen} animationType="slide" onRequestClose={handleCloseScanner}>
@@ -339,6 +367,28 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
   },
+  statusResultBox: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+  },
+  statusResultSuccess: {
+    backgroundColor: "rgba(54,243,162,0.10)",
+    borderColor: "rgba(54,243,162,0.28)",
+  },
+  statusResultError: {
+    backgroundColor: "rgba(255,59,48,0.10)",
+    borderColor: "rgba(255,59,48,0.28)",
+  },
+  statusResultInfo: {
+    backgroundColor: "rgba(74,159,255,0.10)",
+    borderColor: "rgba(74,159,255,0.28)",
+  },
+  statusResultText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   statusCard: {
     backgroundColor: colors.card2,
     borderRadius: 22,
@@ -369,7 +419,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,45,85,0.22)",
     padding: 18,
   },
-  balanceLabel: { color: colors.textSoft, fontSize: 14 },
+  balanceLabel: {
+    color: colors.textSoft,
+    fontSize: 14,
+  },
   balanceValue: {
     color: colors.text,
     fontSize: 34,
@@ -389,28 +442,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 14,
   },
-  statLabel: { color: colors.textMuted, fontSize: 12 },
+  statLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
   statValue: {
     color: colors.text,
     fontSize: 20,
     fontWeight: "800",
     marginTop: 6,
-  },
-  beansRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 16,
-    flexWrap: "wrap",
-  },
-  beanIcon: { fontSize: 18 },
-  beanInactive: { opacity: 0.2 },
-  balanceHint: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 14,
-    textAlign: "center",
   },
   qrCard: {
     backgroundColor: colors.card2,
@@ -452,20 +492,6 @@ const styles = StyleSheet.create({
     color: "#04120C",
     fontSize: 16,
     fontWeight: "800",
-  },
-  secondaryButton: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: colors.card2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryButtonText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "700",
   },
   modalHeader: {
     flexDirection: "row",
@@ -509,5 +535,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: "700",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });
