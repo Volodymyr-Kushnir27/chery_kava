@@ -38,7 +38,7 @@ function formatRole(role) {
   return role || '—';
 }
 
-export default function ProfileScreen() {
+export default function StaffProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [errorText, setErrorText] = useState('');
@@ -115,8 +115,8 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <Text style={styles.heroTitle}>Профіль</Text>
-          <Text style={styles.heroText}>Акаунт, баланс і реферальна інформація.</Text>
+          <Text style={styles.heroTitle}>Профіль адміністратора</Text>
+          <Text style={styles.heroText}>Керування акаунтом і перехід у режим гостя.</Text>
         </View>
 
         {!!errorText && (
@@ -131,16 +131,7 @@ export default function ProfileScreen() {
         {!errorText && profile && (
           <>
             <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Основна інформація</Text>
-
-                <Pressable
-                  style={styles.secondaryPill}
-                  onPress={() => Alert.alert('Скоро', 'Редагування профілю додамо далі')}
-                >
-                  <Text style={styles.secondaryPillText}>Редагувати</Text>
-                </Pressable>
-              </View>
+              <Text style={styles.cardTitle}>Основна інформація</Text>
 
               <ProfileRow label="Ім’я" value={profile.first_name} />
               <ProfileRow label="Прізвище" value={profile.last_name} />
@@ -152,7 +143,7 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Лояльність</Text>
+              <Text style={styles.cardTitle}>Баланс і рефералка</Text>
 
               <View style={styles.balanceBox}>
                 <Text style={styles.balanceLabel}>Баланс зерен</Text>
@@ -165,19 +156,12 @@ export default function ProfileScreen() {
               />
             </View>
 
-            {profile.role === 'admin' && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Адмін-інструменти</Text>
-                <Text style={styles.cardText}>Доступно тільки для адміністратора.</Text>
-
-                <Pressable
-                  style={styles.adminButton}
-                  onPress={() => router.push('/staff')}
-                >
-                  <Text style={styles.adminButtonText}>Адмін-панель</Text>
-                </Pressable>
-              </View>
-            )}
+            <Pressable
+              style={styles.guestButton}
+              onPress={() => router.push('/staff/menu')}
+            >
+              <Text style={styles.guestButtonText}>Режим гостя</Text>
+            </Pressable>
 
             <Pressable style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutButtonText}>Вийти з акаунта</Text>
@@ -252,38 +236,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: 18,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 10,
-  },
   cardTitle: {
     color: colors.text,
     fontSize: 18,
     fontWeight: '800',
-  },
-  cardText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    marginTop: 6,
-    marginBottom: 14,
-  },
-  secondaryPill: {
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(74,159,255,0.45)',
-    backgroundColor: 'rgba(74,159,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryPillText: {
-    color: '#66B3FF',
-    fontSize: 13,
-    fontWeight: '700',
+    marginBottom: 6,
   },
   infoRow: {
     paddingVertical: 12,
@@ -319,17 +276,16 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 6,
   },
-  adminButton: {
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: colors.cherry,
+  guestButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
   },
-  adminButtonText: {
-    color: colors.text,
-    fontSize: 15,
+  guestButtonText: {
+    color: '#04120C',
+    fontSize: 16,
     fontWeight: '800',
   },
   logoutButton: {

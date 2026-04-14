@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,11 +8,11 @@ import {
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import { router, useFocusEffect } from "expo-router";
-import { supabase } from "../../src/lib/supabase";
-import { colors, metrics } from "../../src/constants/theme";
-import { getLocations, getMenuByLocation } from "../../src/services/menuService";
+} from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { supabase } from '../../src/lib/supabase';
+import { colors, metrics } from '../../src/constants/theme';
+import { getLocations, getMenuByLocation } from '../../src/services/menuService';
 
 export default function StaffMenuScreen() {
   const [checkingRole, setCheckingRole] = useState(true);
@@ -21,7 +21,6 @@ export default function StaffMenuScreen() {
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [categories, setCategories] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +29,7 @@ export default function StaffMenuScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (isAdmin) {
-        loadMenu();
-      }
+      if (isAdmin) loadMenu();
     }, [isAdmin]),
   );
 
@@ -49,16 +46,14 @@ export default function StaffMenuScreen() {
       }
 
       const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
         .maybeSingle();
 
       if (error) throw error;
-
-      setIsAdmin(data?.role === "admin");
+      setIsAdmin(data?.role === 'admin');
     } catch (e) {
-      console.log("check role error:", e?.message);
       setIsAdmin(false);
     } finally {
       setCheckingRole(false);
@@ -87,8 +82,7 @@ export default function StaffMenuScreen() {
       const result = await getMenuByLocation(chosenLocation.id);
       setCategories(result?.categories || []);
     } catch (e) {
-      console.log("staff menu load error:", e?.message);
-      Alert.alert("Помилка", e?.message || "Не вдалося завантажити меню");
+      Alert.alert('Помилка', e?.message || 'Не вдалося завантажити меню');
     } finally {
       setLoading(false);
     }
@@ -104,7 +98,7 @@ export default function StaffMenuScreen() {
       const result = await getMenuByLocation(location.id);
       setCategories(result?.categories || []);
     } catch (e) {
-      Alert.alert("Помилка", e?.message || "Не вдалося завантажити локацію");
+      Alert.alert('Помилка', e?.message || 'Не вдалося завантажити локацію');
     } finally {
       setLoading(false);
     }
@@ -146,12 +140,18 @@ export default function StaffMenuScreen() {
             <Text style={styles.title}>Керування меню</Text>
             <Text style={styles.text}>Додавання та перегляд позицій меню.</Text>
           </View>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <Pressable style={styles.addButton} onPress={() => router.push('/staff/menu-form')}>
+            <Text style={styles.addButtonText}>+ Товар</Text>
+          </Pressable>
 
           <Pressable
-            style={styles.addButton}
-            onPress={() => router.push("/staff/menu-form")}
+            style={[styles.addButton, styles.secondaryAction]}
+            onPress={() => router.push('/staff/locations')}
           >
-            <Text style={styles.addButtonText}>+ Додати</Text>
+            <Text style={[styles.addButtonText, styles.secondaryActionText]}>Локації</Text>
           </Pressable>
         </View>
 
@@ -162,10 +162,7 @@ export default function StaffMenuScreen() {
             return (
               <Pressable
                 key={location.id}
-                style={[
-                  styles.locationButton,
-                  active && styles.locationButtonActive,
-                ]}
+                style={[styles.locationButton, active && styles.locationButtonActive]}
                 onPress={() => handleSelectLocation(location)}
               >
                 <Text
@@ -212,7 +209,7 @@ export default function StaffMenuScreen() {
                     <View key={size.id} style={styles.sizeRow}>
                       <Text style={styles.sizeText}>
                         {size.label}
-                        {size.volume_ml ? ` · ${size.volume_ml} мл` : ""}
+                        {size.volume_ml ? ` · ${size.volume_ml} мл` : ''}
                       </Text>
 
                       <Text style={styles.priceText}>{size.priceLabel}</Text>
@@ -229,30 +226,26 @@ export default function StaffMenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  container: {
-    flex: 1,
-    padding: metrics.screenPadding,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, padding: metrics.screenPadding },
   center: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
+    marginBottom: 14,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
     marginBottom: 18,
   },
   title: {
     color: colors.text,
     fontSize: 26,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   text: {
     color: colors.textMuted,
@@ -264,18 +257,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     backgroundColor: colors.green,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButtonText: {
-    color: "#04120C",
+    color: '#04120C',
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: '800',
+  },
+  secondaryAction: {
+    backgroundColor: colors.card2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  secondaryActionText: {
+    color: colors.text,
   },
   locationsRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 10,
-    flexWrap: "wrap",
+    flexWrap: 'wrap',
     marginBottom: 18,
   },
   locationButton: {
@@ -285,17 +286,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   locationButtonActive: {
     borderColor: colors.cherry,
-    backgroundColor: "rgba(255,45,85,0.10)",
+    backgroundColor: 'rgba(255,45,85,0.10)',
   },
   locationButtonText: {
     color: colors.textSoft,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   locationButtonTextActive: {
     color: colors.cherry,
@@ -310,7 +311,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.text,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   emptyText: {
     color: colors.textMuted,
@@ -327,13 +328,13 @@ const styles = StyleSheet.create({
   categoryText: {
     color: colors.cherry,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: '700',
     marginBottom: 4,
   },
   itemTitle: {
     color: colors.text,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   itemDesc: {
     color: colors.textMuted,
@@ -352,18 +353,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgSoft,
     borderWidth: 1,
     borderColor: colors.white06,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sizeText: {
     color: colors.text,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   priceText: {
     color: colors.green,
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: '800',
   },
 });

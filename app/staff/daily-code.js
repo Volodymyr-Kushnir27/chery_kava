@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,11 +8,12 @@ import {
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import QRCode from "react-native-qrcode-svg";
-import { supabase } from "../../src/lib/supabase";
-import { colors, metrics } from "../../src/constants/theme";
-import { getLocations } from "../../src/services/menuService";
+} from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { router } from 'expo-router';
+import { supabase } from '../../src/lib/supabase';
+import { colors, metrics } from '../../src/constants/theme';
+import { getLocations } from '../../src/services/menuService';
 
 export default function DailyCodeScreen() {
   const [loading, setLoading] = useState(true);
@@ -32,15 +33,14 @@ export default function DailyCodeScreen() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase.rpc("get_or_create_daily_code", {
+      const { data, error } = await supabase.rpc('get_or_create_daily_code', {
         location_id: locationId,
       });
 
       if (error) throw error;
-
       setDailyCode(data || null);
     } catch (e) {
-      Alert.alert("Помилка", e?.message || "Не вдалося отримати код дня");
+      Alert.alert('Помилка', e?.message || 'Не вдалося отримати код дня');
     } finally {
       setLoading(false);
     }
@@ -59,14 +59,14 @@ export default function DailyCodeScreen() {
       }
 
       const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, role")
-        .eq("id", userId)
+        .from('profiles')
+        .select('id, role')
+        .eq('id', userId)
         .maybeSingle();
 
       if (profileError) throw profileError;
 
-      const allowed = ["barista", "admin"].includes(profile?.role);
+      const allowed = ['barista', 'admin'].includes(profile?.role);
       setIsStaff(allowed);
 
       if (!allowed) return;
@@ -81,7 +81,7 @@ export default function DailyCodeScreen() {
         await loadDailyCode(firstLocation.id);
       }
     } catch (e) {
-      Alert.alert("Помилка", e?.message || "Не вдалося підготувати екран");
+      Alert.alert('Помилка', e?.message || 'Не вдалося підготувати екран');
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,7 @@ export default function DailyCodeScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.title}>Код дня</Text>
+          <Text style={styles.title}>QR дня</Text>
           <Text style={styles.text}>Доступ лише для бариста або адміністратора.</Text>
         </View>
       </SafeAreaView>
@@ -116,17 +116,17 @@ export default function DailyCodeScreen() {
   const qrPayload =
     dailyCode && selectedLocation
       ? JSON.stringify({
-          type: "daily_visit",
+          type: 'daily_visit',
           code_value: dailyCode.code_value,
           location_id: selectedLocation.id,
           date: dailyCode.code_date,
         })
-      : "";
+      : '';
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Код дня</Text>
+        <Text style={styles.title}>QR дня</Text>
         <Text style={styles.text}>
           Покажіть цей QR клієнту. Після сканування він отримає +1 зерно за візит.
         </Text>
@@ -164,14 +164,10 @@ export default function DailyCodeScreen() {
           </View>
 
           <Text style={styles.codeLabel}>Текстовий код</Text>
-          <Text style={styles.codeValue}>{dailyCode?.code_value || "—"}</Text>
+          <Text style={styles.codeValue}>{dailyCode?.code_value || '—'}</Text>
 
-          <Text style={styles.metaText}>
-            Локація: {selectedLocation?.title || "—"}
-          </Text>
-          <Text style={styles.metaText}>
-            Дата: {dailyCode?.code_date || "—"}
-          </Text>
+          <Text style={styles.metaText}>Локація: {selectedLocation?.title || '—'}</Text>
+          <Text style={styles.metaText}>Дата: {dailyCode?.code_date || '—'}</Text>
         </View>
 
         <Pressable
@@ -180,20 +176,24 @@ export default function DailyCodeScreen() {
         >
           <Text style={styles.primaryButtonText}>Оновити код дня</Text>
         </Pressable>
+
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => router.push('/staff/redeem')}
+        >
+          <Text style={styles.secondaryButtonText}>Списання балів</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
   center: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   container: {
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   text: {
     color: colors.textMuted,
@@ -212,8 +212,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   locationsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     marginTop: 18,
   },
@@ -224,17 +224,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   locationButtonActive: {
-    backgroundColor: "rgba(255,45,85,0.10)",
+    backgroundColor: 'rgba(255,45,85,0.10)',
     borderColor: colors.cherry,
   },
   locationButtonText: {
     color: colors.textSoft,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   locationButtonTextActive: {
     color: colors.cherry,
@@ -246,20 +246,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
-    alignItems: "center",
+    alignItems: 'center',
   },
   qrBox: {
     width: 260,
     height: 260,
     borderRadius: 20,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qrFallback: {
-    color: "#000",
+    color: '#000',
     fontSize: 56,
-    fontWeight: "900",
+    fontWeight: '900',
   },
   codeLabel: {
     color: colors.textMuted,
@@ -269,27 +269,42 @@ const styles = StyleSheet.create({
   codeValue: {
     color: colors.text,
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: '900',
     marginTop: 4,
-    textAlign: "center",
+    textAlign: 'center',
   },
   metaText: {
     color: colors.textSoft,
     fontSize: 13,
     marginTop: 8,
-    textAlign: "center",
+    textAlign: 'center',
   },
   primaryButton: {
     marginTop: 18,
     minHeight: 54,
     borderRadius: 16,
     backgroundColor: colors.green,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryButtonText: {
-    color: "#04120C",
+    color: '#04120C',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    marginTop: 12,
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: colors.card2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
