@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,15 +10,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../src/lib/supabase";
 import { colors, metrics } from "../../src/constants/theme";
-import {
-  createMenuItem,
-  createMenuItemSize,
-  getLocations,
-  upsertLocationMenuPrice,
-} from "../../src/services/menuService";
 
 function slugify(value) {
   return String(value || "")
@@ -31,7 +25,29 @@ function slugify(value) {
     .replace(/^\-|\-$/g, "");
 }
 
+function parsePrice(value) {
+  const num = Number(String(value || "").replace(",", "."));
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function normalizePriceInput(value) {
+  return String(value || "").replace(",", ".").replace(/[^\d.]/g, "");
+}
+
+const SIZE_CONFIG = {
+  small: { code: "small", label: "Малий", volume: 250, sort: 1 },
+  medium: { code: "medium", label: "Середній", volume: 350, sort: 2 },
+  large: { code: "large", label: "Великий", volume: 450, sort: 3 },
+};
+
 export default function StaffMenuFormScreen() {
+  const params = useLocalSearchParams();
+  const itemId = typeof params.itemId === "string" ? params.itemId : "";
+  const initialLocationId =
+    typeof params.locationId === "string" ? params.locationId : "";
+
+  const isEditMode = useMemo(() => Boolean(itemId), [itemId]);
+
   const [checkingRole, setCheckingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -54,6 +70,21 @@ export default function StaffMenuFormScreen() {
   useEffect(() => {
     bootstrap();
   }, []);
+
+  function buildEmptyPrices(locationList) {
+    const result = {};
+    (locationList || []).forEach((loc) => {
+      result[loc.id] = "";
+    });
+    return result;
+  }
+
+  function updatePrice(setter, locationId, value) {
+    setter((prev) => ({
+      ...prev,
+      [locationId]: normalizePriceInput(value),
+    }));
+  }
 
   async function bootstrap() {
     try {
@@ -82,33 +113,41 @@ export default function StaffMenuFormScreen() {
 
       setLoadingData(true);
 
-      const [{ data: categoryList, error: catError }, locationList] =
+      const [{ data: categoryList, error: catError }, { data: locationList, error: locError }] =
         await Promise.all([
           supabase
             .from("menu_categories")
             .select("id, name, title, subtitle, slug, sort_order")
             .eq("is_active", true)
             .order("sort_order", { ascending: true }),
-          getLocations(),
+          supabase
+            .from("locations")
+            .select("id, title, short_title, is_active, sort_order")
+            .order("sort_order", { ascending: true }),
         ]);
 
       if (catError) throw catError;
+      if (locError) throw locError;
 
-      setCategories(categoryList || []);
-      setLocations(locationList || []);
+      const normalizedCategories = categoryList || [];
+      const normalizedLocations = (locationList || []).filter((x) => x.is_active !== false);
 
-      if (categoryList?.[0]?.id) {
-        setSelectedCategoryId(categoryList[0].id);
+      setCategories(normalizedCategories);
+      setLocations(normalizedLocations);
+
+      const initialSmall = buildEmptyPrices(normalizedLocations);
+      const initialMedium = buildEmptyPrices(normalizedLocations);
+      const initialLarge = buildEmptyPrices(normalizedLocations);
+
+      setSmallPrice(initialSmall);
+      setMediumPrice(initialMedium);
+      setLargePrice(initialLarge);
+
+      if (isEditMode) {
+        await loadExistingItem(itemId, normalizedLocations, normalizedCategories);
+      } else if (normalizedCategories?.[0]?.id) {
+        setSelectedCategoryId(normalizedCategories[0].id);
       }
-
-      const initialPrices = {};
-      (locationList || []).forEach((loc) => {
-        initialPrices[loc.id] = "";
-      });
-
-      setSmallPrice(initialPrices);
-      setMediumPrice(initialPrices);
-      setLargePrice(initialPrices);
     } catch (e) {
       console.log("menu form bootstrap error:", e?.message);
       Alert.alert("Помилка", e?.message || "Не вдалося підготувати форму");
@@ -118,14 +157,125 @@ export default function StaffMenuFormScreen() {
     }
   }
 
-  function updatePrice(setter, locationId, value) {
-    const cleaned = String(value || "").replace(",", ".").replace(/[^\d.]/g, "");
-    setter((prev) => ({ ...prev, [locationId]: cleaned }));
+  async function loadExistingItem(targetItemId, locationList, categoryList) {
+    const { data: item, error: itemError } = await supabase
+      .from("menu_items")
+      .select("id, category_id, name, title, description, ingredients, slug")
+      .eq("id", targetItemId)
+      .maybeSingle();
+
+    if (itemError) throw itemError;
+    if (!item) throw new Error("Товар не знайдено");
+
+    setSelectedCategoryId(item.category_id || categoryList?.[0]?.id || "");
+    setTitle(item.title || item.name || "");
+    setDescription(item.description || "");
+    setIngredients(item.ingredients || "");
+
+    const { data: sizeRows, error: sizeError } = await supabase
+      .from("menu_item_sizes")
+      .select("id, size_code, size_label, volume_ml")
+      .eq("item_id", targetItemId);
+
+    if (sizeError) throw sizeError;
+
+    const sizeMap = {};
+    for (const row of sizeRows || []) {
+      sizeMap[row.size_code] = row;
+    }
+
+    const sizeIds = (sizeRows || []).map((x) => x.id);
+    if (!sizeIds.length) return;
+
+    const { data: priceRows, error: priceError } = await supabase
+      .from("location_menu_prices")
+      .select("id, location_id, item_size_id, price, is_available, is_active")
+      .in("item_size_id", sizeIds);
+
+    if (priceError) throw priceError;
+
+    const nextSmall = buildEmptyPrices(locationList);
+    const nextMedium = buildEmptyPrices(locationList);
+    const nextLarge = buildEmptyPrices(locationList);
+
+    for (const row of priceRows || []) {
+      const size = Object.values(sizeMap).find((s) => s.id === row.item_size_id);
+      if (!size) continue;
+
+      const priceValue =
+        row.price === null || row.price === undefined ? "" : String(Number(row.price));
+
+      if (size.size_code === "small") nextSmall[row.location_id] = priceValue;
+      if (size.size_code === "medium") nextMedium[row.location_id] = priceValue;
+      if (size.size_code === "large") nextLarge[row.location_id] = priceValue;
+    }
+
+    setSmallPrice(nextSmall);
+    setMediumPrice(nextMedium);
+    setLargePrice(nextLarge);
   }
 
-  function parsePrice(value) {
-    const num = Number(String(value || "").replace(",", "."));
-    return Number.isFinite(num) && num > 0 ? num : null;
+  async function ensureItemSize(itemIdValue, code) {
+    const cfg = SIZE_CONFIG[code];
+
+    const { data: existing, error: existingError } = await supabase
+      .from("menu_item_sizes")
+      .select("id, item_id, size_code")
+      .eq("item_id", itemIdValue)
+      .eq("size_code", code)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (existing?.id) return existing;
+
+    const { data: created, error: createError } = await supabase
+      .from("menu_item_sizes")
+      .insert({
+        item_id: itemIdValue,
+        size_code: cfg.code,
+        size_label: cfg.label,
+        volume_ml: cfg.volume,
+        sort_order: cfg.sort,
+        is_active: true,
+      })
+      .select("id, item_id, size_code")
+      .single();
+
+    if (createError) throw createError;
+    return created;
+  }
+
+  async function upsertPrice({ locationId, itemSizeId, price, sortOrder }) {
+    const { data: existing, error: existingError } = await supabase
+      .from("location_menu_prices")
+      .select("id")
+      .eq("location_id", locationId)
+      .eq("item_size_id", itemSizeId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    const payload = {
+      location_id: locationId,
+      item_size_id: itemSizeId,
+      price,
+      is_available: true,
+      is_active: true,
+      sort_order: sortOrder,
+    };
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from("location_menu_prices")
+        .update(payload)
+        .eq("id", existing.id);
+
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.from("location_menu_prices").insert(payload);
+    if (error) throw error;
   }
 
   async function handleSave() {
@@ -135,7 +285,7 @@ export default function StaffMenuFormScreen() {
     }
 
     if (!title.trim()) {
-      Alert.alert("Увага", "Введіть назву напою");
+      Alert.alert("Увага", "Введіть назву товару");
       return;
     }
 
@@ -143,43 +293,46 @@ export default function StaffMenuFormScreen() {
       setSaving(true);
 
       const itemSlug = slugify(title);
+      let savedItemId = itemId;
 
-      const newItem = await createMenuItem({
-        category_id: selectedCategoryId,
-        slug: itemSlug,
-        title: title.trim(),
-        description: description.trim() || null,
-        ingredients: ingredients.trim() || null,
-        sort_order: 0,
-        is_active: true,
-      });
+      if (isEditMode) {
+        const { error: updateError } = await supabase
+          .from("menu_items")
+          .update({
+            category_id: selectedCategoryId,
+            name: title.trim(),
+            title: title.trim(),
+            slug: itemSlug,
+            description: description.trim() || null,
+            ingredients: ingredients.trim() || null,
+            is_active: true,
+          })
+          .eq("id", itemId);
 
-      const smallSize = await createMenuItemSize({
-        item_id: newItem.id,
-        size_code: "small",
-        size_label: "Малий",
-        volume_ml: 250,
-        sort_order: 1,
-        is_active: true,
-      });
+        if (updateError) throw updateError;
+      } else {
+        const { data: createdItem, error: createError } = await supabase
+          .from("menu_items")
+          .insert({
+            category_id: selectedCategoryId,
+            name: title.trim(),
+            slug: itemSlug,
+            title: title.trim(),
+            description: description.trim() || null,
+            ingredients: ingredients.trim() || null,
+            sort_order: 0,
+            is_active: true,
+          })
+          .select("id")
+          .single();
 
-      const mediumSize = await createMenuItemSize({
-        item_id: newItem.id,
-        size_code: "medium",
-        size_label: "Середній",
-        volume_ml: 350,
-        sort_order: 2,
-        is_active: true,
-      });
+        if (createError) throw createError;
+        savedItemId = createdItem.id;
+      }
 
-      const largeSize = await createMenuItemSize({
-        item_id: newItem.id,
-        size_code: "large",
-        size_label: "Великий",
-        volume_ml: 450,
-        sort_order: 3,
-        is_active: true,
-      });
+      const smallSize = await ensureItemSize(savedItemId, "small");
+      const mediumSize = await ensureItemSize(savedItemId, "medium");
+      const largeSize = await ensureItemSize(savedItemId, "large");
 
       for (const location of locations) {
         const pSmall = parsePrice(smallPrice[location.id]);
@@ -187,44 +340,49 @@ export default function StaffMenuFormScreen() {
         const pLarge = parsePrice(largePrice[location.id]);
 
         if (pSmall) {
-          await upsertLocationMenuPrice({
-            location_id: location.id,
-            item_size_id: smallSize.id,
+          await upsertPrice({
+            locationId: location.id,
+            itemSizeId: smallSize.id,
             price: pSmall,
-            is_available: true,
-            is_active: true,
-            sort_order: 1,
+            sortOrder: 1,
           });
         }
 
         if (pMedium) {
-          await upsertLocationMenuPrice({
-            location_id: location.id,
-            item_size_id: mediumSize.id,
+          await upsertPrice({
+            locationId: location.id,
+            itemSizeId: mediumSize.id,
             price: pMedium,
-            is_available: true,
-            is_active: true,
-            sort_order: 2,
+            sortOrder: 2,
           });
         }
 
         if (pLarge) {
-          await upsertLocationMenuPrice({
-            location_id: location.id,
-            item_size_id: largeSize.id,
+          await upsertPrice({
+            locationId: location.id,
+            itemSizeId: largeSize.id,
             price: pLarge,
-            is_available: true,
-            is_active: true,
-            sort_order: 3,
+            sortOrder: 3,
           });
         }
       }
 
-      Alert.alert("Готово", "Позицію меню створено");
-      router.replace("/staff/menu");
+      Alert.alert(
+        "Готово",
+        isEditMode ? "Позицію меню оновлено" : "Позицію меню створено",
+      );
+
+      if (initialLocationId) {
+        router.replace({
+          pathname: "/staff/menu",
+          params: { locationId: initialLocationId },
+        });
+      } else {
+        router.replace("/staff/menu");
+      }
     } catch (e) {
-      console.log("menu create error:", e?.message);
-      Alert.alert("Помилка", e?.message || "Не вдалося створити позицію");
+      console.log("menu save error:", e?.message);
+      Alert.alert("Помилка", e?.message || "Не вдалося зберегти позицію");
     } finally {
       setSaving(false);
     }
@@ -244,7 +402,9 @@ export default function StaffMenuFormScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.title}>Додавання товару</Text>
+          <Text style={styles.title}>
+            {isEditMode ? "Редагування товару" : "Додавання товару"}
+          </Text>
           <Text style={styles.text}>Доступ лише для адміністратора.</Text>
         </View>
       </SafeAreaView>
@@ -257,8 +417,14 @@ export default function StaffMenuFormScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Новий товар</Text>
-        <Text style={styles.text}>Створення позиції меню з цінами по локаціях.</Text>
+        <Text style={styles.title}>
+          {isEditMode ? "Редагування товару" : "Новий товар"}
+        </Text>
+        <Text style={styles.text}>
+          {isEditMode
+            ? "Оновіть назву, опис, склад і ціни по локаціях."
+            : "Створення позиції меню з цінами по локаціях."}
+        </Text>
 
         <Text style={styles.label}>Категорія</Text>
         <View style={styles.pillsWrap}>
@@ -285,7 +451,7 @@ export default function StaffMenuFormScreen() {
           style={styles.input}
           value={title}
           onChangeText={setTitle}
-          placeholder="Наприклад: Flat White"
+          placeholder="Наприклад: Американо"
           placeholderTextColor={colors.textMuted}
         />
 
@@ -303,7 +469,7 @@ export default function StaffMenuFormScreen() {
           style={[styles.input, styles.textarea]}
           value={ingredients}
           onChangeText={setIngredients}
-          placeholder="Еспресо, молоко..."
+          placeholder="Еспресо, вода..."
           placeholderTextColor={colors.textMuted}
           multiline
         />
@@ -348,7 +514,11 @@ export default function StaffMenuFormScreen() {
 
         <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
           <Text style={styles.saveButtonText}>
-            {saving ? "Збереження..." : "Створити товар"}
+            {saving
+              ? "Збереження..."
+              : isEditMode
+                ? "Зберегти зміни"
+                : "Створити товар"}
           </Text>
         </Pressable>
 

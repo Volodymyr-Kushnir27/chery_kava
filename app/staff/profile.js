@@ -101,6 +101,10 @@ export default function StaffProfileScreen() {
     }
   }
 
+  function handleGuestMode() {
+    router.replace('/menu');
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -156,10 +160,7 @@ export default function StaffProfileScreen() {
               />
             </View>
 
-            <Pressable
-              style={styles.guestButton}
-              onPress={() => router.push('/staff/menu')}
-            >
+            <Pressable style={styles.guestButton} onPress={handleGuestMode}>
               <Text style={styles.guestButtonText}>Режим гостя</Text>
             </Pressable>
 

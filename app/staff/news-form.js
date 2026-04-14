@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,20 +10,37 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../src/lib/supabase";
 import { colors, metrics } from "../../src/constants/theme";
 
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['`’]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\-а-яіїєґ]/gi, "-")
+    .replace(/\-+/g, "-")
+    .replace(/^\-|\-$/g, "");
+}
+
 export default function StaffNewsFormScreen() {
+  const params = useLocalSearchParams();
+  const newsId = typeof params.newsId === "string" ? params.newsId : "";
+  const isEditMode = useMemo(() => Boolean(newsId), [newsId]);
+
   const [checkingRole, setCheckingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState("");
+
+  const [loadingData, setLoadingData] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [body, setBody] = useState("");
   const [published, setPublished] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     bootstrap();
@@ -32,32 +49,57 @@ export default function StaffNewsFormScreen() {
   async function bootstrap() {
     try {
       setCheckingRole(true);
+      setLoadingData(true);
 
-      const { data: authData } = await supabase.auth.getUser();
-      const id = authData?.user?.id;
-      setUserId(id || null);
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
 
-      if (!id) {
+      const currentUserId = authData?.user?.id;
+      if (!currentUserId) {
         setIsAdmin(false);
         return;
       }
 
-      const { data, error } = await supabase
+      setUserId(currentUserId);
+
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
-        .eq("id", id)
+        .select("id, role")
+        .eq("id", currentUserId)
         .maybeSingle();
 
-      if (error) throw error;
-      setIsAdmin(data?.role === "admin");
+      if (profileError) throw profileError;
+
+      const admin = profile?.role === "admin";
+      setIsAdmin(admin);
+
+      if (!admin) return;
+
+      if (isEditMode) {
+        const { data: newsItem, error: newsError } = await supabase
+          .from("news_posts")
+          .select("id, title, body, image_url, is_published, published_at")
+          .eq("id", newsId)
+          .maybeSingle();
+
+        if (newsError) throw newsError;
+        if (!newsItem) throw new Error("Новину не знайдено");
+
+        setTitle(newsItem.title || "");
+        setBody(newsItem.body || "");
+        setImageUrl(newsItem.image_url || "");
+        setPublished(Boolean(newsItem.is_published));
+      }
     } catch (e) {
-      setIsAdmin(false);
+      console.log("news form bootstrap error:", e);
+      Alert.alert("Помилка", e?.message || "Не вдалося підготувати форму");
     } finally {
       setCheckingRole(false);
+      setLoadingData(false);
     }
   }
 
-  async function handleSave() {
+  async function handleSave(forceDraft = false) {
     if (!title.trim()) {
       Alert.alert("Увага", "Введіть заголовок");
       return;
@@ -68,32 +110,62 @@ export default function StaffNewsFormScreen() {
       return;
     }
 
+    if (!userId) {
+      Alert.alert("Помилка", "Не знайдено user id сесії");
+      return;
+    }
+
     try {
       setSaving(true);
 
+      const finalPublished = forceDraft ? false : published;
       const payload = {
+        slug: slugify(title),
         title: title.trim(),
         body: body.trim(),
+        content: body.trim(),
         image_url: imageUrl.trim() || null,
-        is_published: published,
-        published_at: published ? new Date().toISOString() : null,
+        cover_image_url: imageUrl.trim() || null,
+        is_published: finalPublished,
+        published_at: finalPublished ? new Date().toISOString() : null,
         created_by: userId,
       };
 
-      const { error } = await supabase.from("news_posts").insert(payload);
+      if (isEditMode) {
+        const { error } = await supabase
+          .from("news_posts")
+          .update(payload)
+          .eq("id", newsId);
 
-      if (error) throw error;
+        if (error) {
+          console.log("news update error:", error);
+          throw error;
+        }
 
-      Alert.alert("Готово", "Новину створено");
+        Alert.alert("Готово", "Новину оновлено");
+      } else {
+        const { error } = await supabase
+          .from("news_posts")
+          .insert(payload);
+
+        if (error) {
+          console.log("news create error:", error);
+          throw error;
+        }
+
+        Alert.alert("Готово", forceDraft ? "Чернетку збережено" : "Новину створено");
+      }
+
       router.replace("/staff/news");
     } catch (e) {
-      Alert.alert("Помилка", e?.message || "Не вдалося створити новину");
+      console.log("news save error full:", e);
+      Alert.alert("Помилка", e?.message || "Не вдалося зберегти новину");
     } finally {
       setSaving(false);
     }
   }
 
-  if (checkingRole) {
+  if (checkingRole || loadingData) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
@@ -107,7 +179,9 @@ export default function StaffNewsFormScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.title}>Створення новини</Text>
+          <Text style={styles.title}>
+            {isEditMode ? "Редагування новини" : "Створення новини"}
+          </Text>
           <Text style={styles.text}>Доступ лише для адміністратора.</Text>
         </View>
       </SafeAreaView>
@@ -117,8 +191,14 @@ export default function StaffNewsFormScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Нова новина</Text>
-        <Text style={styles.text}>Додайте заголовок, зображення та текст.</Text>
+        <Text style={styles.title}>
+          {isEditMode ? "Редагування новини" : "Нова новина"}
+        </Text>
+        <Text style={styles.text}>
+          {isEditMode
+            ? "Оновіть заголовок, картинку і текст."
+            : "Додайте заголовок, зображення та текст."}
+        </Text>
 
         <Text style={styles.label}>Заголовок</Text>
         <TextInput
@@ -158,9 +238,27 @@ export default function StaffNewsFormScreen() {
           </Text>
         </Pressable>
 
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => handleSave(true)}
+          disabled={saving}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {saving ? "Збереження..." : "Зберегти як чернетку"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.saveButton}
+          onPress={() => handleSave(false)}
+          disabled={saving}
+        >
           <Text style={styles.saveButtonText}>
-            {saving ? "Збереження..." : "Створити новину"}
+            {saving
+              ? "Збереження..."
+              : isEditMode
+                ? "Зберегти новину"
+                : "Створити новину"}
           </Text>
         </Pressable>
 
@@ -173,11 +271,31 @@ export default function StaffNewsFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  container: { padding: metrics.screenPadding, paddingBottom: 120 },
-  title: { color: colors.text, fontSize: 28, fontWeight: "800" },
-  text: { color: colors.textMuted, fontSize: 14, marginTop: 6, marginBottom: 18 },
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  container: {
+    padding: metrics.screenPadding,
+    paddingBottom: 120,
+  },
+  title: {
+    color: colors.text,
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  text: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: 6,
+    marginBottom: 18,
+  },
   label: {
     color: colors.text,
     fontSize: 15,
@@ -209,11 +327,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card2,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 14,
   },
   toggleActive: {
-    backgroundColor: "rgba(54,243,162,0.10)",
-    borderColor: "rgba(54,243,162,0.30)",
+    borderColor: colors.cherry,
+    backgroundColor: "rgba(255,45,85,0.10)",
   },
   toggleText: {
     color: colors.textSoft,
@@ -221,10 +338,25 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   toggleTextActive: {
-    color: colors.green,
+    color: colors.cherry,
+  },
+  secondaryButton: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: colors.card2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "700",
   },
   saveButton: {
-    marginTop: 18,
+    marginTop: 12,
     minHeight: 54,
     borderRadius: 14,
     backgroundColor: colors.green,

@@ -9,18 +9,22 @@ import {
   Text,
   View,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { colors, metrics } from '../../src/constants/theme';
-import { getLocations, getMenuByLocation } from '../../src/services/menuService';
 
 export default function StaffMenuScreen() {
+  const params = useLocalSearchParams();
+  const preferredLocationId =
+    typeof params.locationId === 'string' ? params.locationId : '';
+
   const [checkingRole, setCheckingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [categories, setCategories] = useState([]);
+
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,8 +33,10 @@ export default function StaffMenuScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (isAdmin) loadMenu();
-    }, [isAdmin]),
+      if (isAdmin) {
+        loadAll(preferredLocationId || null);
+      }
+    }, [isAdmin, preferredLocationId]),
   );
 
   async function checkRole() {
@@ -53,34 +59,40 @@ export default function StaffMenuScreen() {
 
       if (error) throw error;
       setIsAdmin(data?.role === 'admin');
-    } catch (e) {
+    } catch {
       setIsAdmin(false);
     } finally {
       setCheckingRole(false);
     }
   }
 
-  async function loadMenu(preferredLocationId = null) {
+  async function loadAll(forcedLocationId = null) {
     try {
       setLoading(true);
 
-      const locationList = await getLocations();
-      setLocations(locationList || []);
+      const { data: locationsData, error: locationsError } = await supabase
+        .from('locations')
+        .select('id, title, short_title, is_active, sort_order')
+        .order('sort_order', { ascending: true });
 
-      const chosenLocation =
-        (locationList || []).find((x) => x.id === preferredLocationId) ||
-        locationList?.[0] ||
+      if (locationsError) throw locationsError;
+
+      const locationList = (locationsData || []).filter((x) => x.is_active !== false);
+      setLocations(locationList);
+
+      const chosen =
+        locationList.find((x) => x.id === forcedLocationId) ||
+        locationList[0] ||
         null;
 
-      setSelectedLocation(chosenLocation);
+      setSelectedLocation(chosen);
 
-      if (!chosenLocation?.id) {
-        setCategories([]);
+      if (!chosen?.id) {
+        setItems([]);
         return;
       }
 
-      const result = await getMenuByLocation(chosenLocation.id);
-      setCategories(result?.categories || []);
+      await loadItemsByLocation(chosen.id);
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося завантажити меню');
     } finally {
@@ -88,28 +100,83 @@ export default function StaffMenuScreen() {
     }
   }
 
-  async function handleSelectLocation(location) {
-    if (!location?.id) return;
-
-    setSelectedLocation(location);
-
+  async function loadItemsByLocation(locationId) {
     try {
       setLoading(true);
-      const result = await getMenuByLocation(location.id);
-      setCategories(result?.categories || []);
+
+      const { data, error } = await supabase
+        .from('location_menu_prices')
+        .select(`
+          id,
+          price,
+          is_available,
+          is_active,
+          item_size:menu_item_sizes (
+            id,
+            size_code,
+            size_label,
+            volume_ml,
+            item:menu_items (
+              id,
+              name,
+              title,
+              description,
+              ingredients,
+              is_active,
+              category:menu_categories (
+                id,
+                title,
+                name
+              )
+            )
+          )
+        `)
+        .eq('location_id', locationId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const map = new Map();
+
+      for (const row of data || []) {
+        const item = row?.item_size?.item;
+        const itemSize = row?.item_size;
+        if (!item?.id || !itemSize?.id) continue;
+
+        if (!map.has(item.id)) {
+          map.set(item.id, {
+            id: item.id,
+            title: item.title || item.name || 'Без назви',
+            description: item.description,
+            ingredients: item.ingredients,
+            is_active: item.is_active,
+            categoryTitle: item.category?.title || item.category?.name || 'Без категорії',
+            sizes: [],
+          });
+        }
+
+        map.get(item.id).sizes.push({
+          id: itemSize.id,
+          label: itemSize.size_label,
+          volume_ml: itemSize.volume_ml,
+          price: row.price,
+          is_available: row.is_available,
+          is_active: row.is_active,
+        });
+      }
+
+      setItems(Array.from(map.values()));
     } catch (e) {
-      Alert.alert('Помилка', e?.message || 'Не вдалося завантажити локацію');
+      Alert.alert('Помилка', e?.message || 'Не вдалося завантажити позиції');
     } finally {
       setLoading(false);
     }
   }
 
-  const flatItems = categories.flatMap((category) =>
-    (category.items || []).map((item) => ({
-      ...item,
-      categoryTitle: category.title,
-    })),
-  );
+  async function handleSelectLocation(location) {
+    setSelectedLocation(location);
+    await loadItemsByLocation(location.id);
+  }
 
   if (checkingRole) {
     return (
@@ -157,7 +224,7 @@ export default function StaffMenuScreen() {
 
         <View style={styles.locationsRow}>
           {locations.map((location) => {
-            const active = location.id === selectedLocation?.id;
+            const active = selectedLocation?.id === location.id;
 
             return (
               <Pressable
@@ -184,7 +251,7 @@ export default function StaffMenuScreen() {
           </View>
         ) : (
           <FlatList
-            data={flatItems}
+            data={items}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: 120, gap: 12 }}
             ListEmptyComponent={
@@ -212,10 +279,25 @@ export default function StaffMenuScreen() {
                         {size.volume_ml ? ` · ${size.volume_ml} мл` : ''}
                       </Text>
 
-                      <Text style={styles.priceText}>{size.priceLabel}</Text>
+                      <Text style={styles.priceText}>{Number(size.price || 0)} грн</Text>
                     </View>
                   ))}
                 </View>
+
+                <Pressable
+                  style={styles.editButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/staff/menu-form',
+                      params: {
+                        itemId: item.id,
+                        locationId: selectedLocation?.id || '',
+                      },
+                    })
+                  }
+                >
+                  <Text style={styles.editButtonText}>Редагувати позицію</Text>
+                </Pressable>
               </View>
             )}
           />
@@ -365,6 +447,21 @@ const styles = StyleSheet.create({
   priceText: {
     color: colors.green,
     fontSize: 13,
+    fontWeight: '800',
+  },
+  editButton: {
+    marginTop: 14,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(74,159,255,0.45)',
+    backgroundColor: 'rgba(74,159,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: {
+    color: '#66B3FF',
+    fontSize: 14,
     fontWeight: '800',
   },
 });
