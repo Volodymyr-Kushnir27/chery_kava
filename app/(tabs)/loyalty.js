@@ -91,65 +91,55 @@ export default function LoyaltyScreen() {
   }
 
   async function handleBarcodeScanned(result) {
-    if (scanLockRef.current || claiming) return;
+  if (claiming) return;
 
-    scanLockRef.current = true;
+  const payload = parseDailyVisitQr(result?.data);
 
-    const payload = parseDailyVisitQr(result?.data);
+  if (!payload) {
+    Alert.alert("Помилка", "Це не QR коду дня.");
+    return;
+  }
 
-    if (!payload) {
-      Alert.alert("Помилка", "Це не QR коду дня.");
-      scanLockRef.current = false;
+  try {
+    setClaiming(true);
+
+    const { data, error: rpcError } = await supabase.rpc("claim_daily_visit", {
+      code_value: payload.code_value,
+      location_id: payload.location_id,
+    });
+
+    if (rpcError) {
+      const msg = rpcError.message || "";
+
+      if (msg.includes("Only customer can claim visit")) {
+        throw new Error("Сканування коду дня доступне тільки для клієнтського акаунта.");
+      }
+
+      if (msg.includes("Profile not found")) {
+        throw new Error("Профіль користувача не знайдено.");
+      }
+
+      if (msg.includes("Not authenticated")) {
+        throw new Error("Сесія недійсна. Увійдіть ще раз.");
+      }
+
+      throw new Error(msg || "Не вдалося зарахувати візит");
+    }
+
+    if (!data?.success) {
+      Alert.alert("Увага", data?.message || "Не вдалося зарахувати візит");
       return;
     }
 
-    try {
-      setClaiming(true);
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      if (!accessToken) {
-        throw new Error("Сесія недійсна. Увійдіть у додаток ще раз.");
-      }
-
-      const { data, error: rpcError } = await supabase.rpc("claim_daily_visit", {
-        code_value: payload.code_value,
-        location_id: payload.location_id,
-      });
-
-      if (rpcError) {
-        throw new Error(rpcError.message || "Не вдалося зарахувати візит");
-      }
-
-      if (!data?.success) {
-        Alert.alert("Увага", data?.message || "Не вдалося зарахувати візит");
-        return;
-      }
-
-      Alert.alert("Готово", data.message || "Зараховано +1 зерно");
-      setScannerOpen(false);
-      await loadData();
-    } catch (e) {
-      const msg = e?.message || "Не вдалося обробити сканування";
-
-      if (
-        msg.includes("Refresh Token") ||
-        msg.includes("JWT") ||
-        msg.includes("Auth session missing") ||
-        msg.includes("Сесія недійсна")
-      ) {
-        Alert.alert("Сесія завершилась", "Увійдіть у додаток ще раз.");
-      } else {
-        Alert.alert("Помилка", msg);
-      }
-    } finally {
-      setClaiming(false);
-      setTimeout(() => {
-        scanLockRef.current = false;
-      }, 1200);
-    }
+    Alert.alert("Готово", data.message || "Зараховано +1 зерно");
+    setScannerOpen(false);
+    await loadData();
+  } catch (e) {
+    Alert.alert("Помилка", e?.message || "Не вдалося обробити сканування");
+  } finally {
+    setClaiming(false);
   }
+}
 
   if (loading) {
     return (
