@@ -1,7 +1,7 @@
-import { Tabs } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../../src/constants/theme';
+import { Tabs } from "expo-router";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Image, StyleSheet, Text, View } from "react-native";
+import { colors } from "../../src/constants/theme";
 
 function HeaderBrand() {
   return (
@@ -15,7 +15,7 @@ function HeaderBrand() {
 function HeaderLogo() {
   return (
     <Image
-      source={require('../../assets/images/Logo1.png')}
+      source={require("../../assets/images/Logo1.png")}
       style={styles.headerLogo}
       resizeMode="contain"
     />
@@ -33,7 +33,7 @@ export default function StaffTabsLayout() {
         },
         headerShadowVisible: false,
         headerTitle: () => <HeaderBrand />,
-        headerTitleAlign: 'center',
+        headerTitleAlign: "center",
         headerLeft: () => (
           <View style={styles.headerLeftWrap}>
             <HeaderLogo />
@@ -50,7 +50,7 @@ export default function StaffTabsLayout() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: "600",
         },
         sceneStyle: {
           backgroundColor: colors.bg,
@@ -67,7 +67,7 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="menu"
         options={{
-          title: 'Меню',
+          title: "Меню",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="restaurant-menu" size={size} color={color} />
           ),
@@ -77,7 +77,7 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="daily-code"
         options={{
-          title: 'QR-код',
+          title: "QR-код",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="qr-code-2" size={size} color={color} />
           ),
@@ -87,7 +87,7 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="news"
         options={{
-          title: 'Новини',
+          title: "Новини",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="campaign" size={size} color={color} />
           ),
@@ -97,9 +97,23 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Профіль',
+          title: "Профіль",
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="admin-panel-settings" size={size} color={color} />
+            <MaterialIcons
+              name="admin-panel-settings"
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: "analytics",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="bar-chart" size={size} color={color} />
           ),
         }}
       />
@@ -144,19 +158,19 @@ const styles = StyleSheet.create({
     height: 34,
   },
   brandWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   brandLine: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1.3,
   },
   brandTagline: {
     color: colors.textSoft,
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
     marginTop: 3,
   },
 });

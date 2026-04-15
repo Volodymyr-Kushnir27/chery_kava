@@ -31,7 +31,9 @@ function parsePrice(value) {
 }
 
 function normalizePriceInput(value) {
-  return String(value || "").replace(",", ".").replace(/[^\d.]/g, "");
+  return String(value || "")
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
 }
 
 const SIZE_CONFIG = {
@@ -113,24 +115,28 @@ export default function StaffMenuFormScreen() {
 
       setLoadingData(true);
 
-      const [{ data: categoryList, error: catError }, { data: locationList, error: locError }] =
-        await Promise.all([
-          supabase
-            .from("menu_categories")
-            .select("id, name, title, subtitle, slug, sort_order")
-            .eq("is_active", true)
-            .order("sort_order", { ascending: true }),
-          supabase
-            .from("locations")
-            .select("id, title, short_title, is_active, sort_order")
-            .order("sort_order", { ascending: true }),
-        ]);
+      const [
+        { data: categoryList, error: catError },
+        { data: locationList, error: locError },
+      ] = await Promise.all([
+        supabase
+          .from("menu_categories")
+          .select("id, name, title, subtitle, slug, sort_order")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("locations")
+          .select("id, title, short_title, is_active, sort_order")
+          .order("sort_order", { ascending: true }),
+      ]);
 
       if (catError) throw catError;
       if (locError) throw locError;
 
       const normalizedCategories = categoryList || [];
-      const normalizedLocations = (locationList || []).filter((x) => x.is_active !== false);
+      const normalizedLocations = (locationList || []).filter(
+        (x) => x.is_active !== false,
+      );
 
       setCategories(normalizedCategories);
       setLocations(normalizedLocations);
@@ -144,7 +150,11 @@ export default function StaffMenuFormScreen() {
       setLargePrice(initialLarge);
 
       if (isEditMode) {
-        await loadExistingItem(itemId, normalizedLocations, normalizedCategories);
+        await loadExistingItem(
+          itemId,
+          normalizedLocations,
+          normalizedCategories,
+        );
       } else if (normalizedCategories?.[0]?.id) {
         setSelectedCategoryId(normalizedCategories[0].id);
       }
@@ -199,11 +209,15 @@ export default function StaffMenuFormScreen() {
     const nextLarge = buildEmptyPrices(locationList);
 
     for (const row of priceRows || []) {
-      const size = Object.values(sizeMap).find((s) => s.id === row.item_size_id);
+      const size = Object.values(sizeMap).find(
+        (s) => s.id === row.item_size_id,
+      );
       if (!size) continue;
 
       const priceValue =
-        row.price === null || row.price === undefined ? "" : String(Number(row.price));
+        row.price === null || row.price === undefined
+          ? ""
+          : String(Number(row.price));
 
       if (size.size_code === "small") nextSmall[row.location_id] = priceValue;
       if (size.size_code === "medium") nextMedium[row.location_id] = priceValue;
@@ -274,7 +288,9 @@ export default function StaffMenuFormScreen() {
       return;
     }
 
-    const { error } = await supabase.from("location_menu_prices").insert(payload);
+    const { error } = await supabase
+      .from("location_menu_prices")
+      .insert(payload);
     if (error) throw error;
   }
 
@@ -292,7 +308,7 @@ export default function StaffMenuFormScreen() {
     try {
       setSaving(true);
 
-      const itemSlug = slugify(title);
+      const itemSlug = await makeUniqueItemSlug(title, isEditMode ? itemId : '');
       let savedItemId = itemId;
 
       if (isEditMode) {
@@ -438,7 +454,9 @@ export default function StaffMenuFormScreen() {
                 style={[styles.pill, active && styles.pillActive]}
                 onPress={() => setSelectedCategoryId(category.id)}
               >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                <Text
+                  style={[styles.pillText, active && styles.pillTextActive]}
+                >
                   {label}
                 </Text>
               </Pressable>
@@ -484,7 +502,9 @@ export default function StaffMenuFormScreen() {
             <TextInput
               style={styles.input}
               value={smallPrice[location.id] || ""}
-              onChangeText={(value) => updatePrice(setSmallPrice, location.id, value)}
+              onChangeText={(value) =>
+                updatePrice(setSmallPrice, location.id, value)
+              }
               placeholder="Ціна"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
@@ -494,7 +514,9 @@ export default function StaffMenuFormScreen() {
             <TextInput
               style={styles.input}
               value={mediumPrice[location.id] || ""}
-              onChangeText={(value) => updatePrice(setMediumPrice, location.id, value)}
+              onChangeText={(value) =>
+                updatePrice(setMediumPrice, location.id, value)
+              }
               placeholder="Ціна"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
@@ -504,7 +526,9 @@ export default function StaffMenuFormScreen() {
             <TextInput
               style={styles.input}
               value={largePrice[location.id] || ""}
-              onChangeText={(value) => updatePrice(setLargePrice, location.id, value)}
+              onChangeText={(value) =>
+                updatePrice(setLargePrice, location.id, value)
+              }
               placeholder="Ціна"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
@@ -512,7 +536,11 @@ export default function StaffMenuFormScreen() {
           </View>
         ))}
 
-        <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
+        <Pressable
+          style={styles.saveButton}
+          onPress={handleSave}
+          disabled={saving}
+        >
           <Text style={styles.saveButtonText}>
             {saving
               ? "Збереження..."
@@ -528,6 +556,31 @@ export default function StaffMenuFormScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+async function makeUniqueItemSlug(baseTitle, currentItemId = "") {
+  const baseSlug = slugify(baseTitle);
+  let candidate = baseSlug;
+  let counter = 2;
+
+  while (true) {
+    let query = supabase
+      .from("menu_items")
+      .select("id, slug")
+      .eq("slug", candidate);
+
+    if (currentItemId) {
+      query = query.neq("id", currentItemId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) throw error;
+    if (!data) return candidate;
+
+    candidate = `${baseSlug}-${counter}`;
+    counter += 1;
+  }
 }
 
 const styles = StyleSheet.create({
