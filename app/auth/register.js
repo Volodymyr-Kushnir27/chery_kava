@@ -5,7 +5,6 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Alert,
   SafeAreaView,
   ScrollView,
   KeyboardAvoidingView,
@@ -13,10 +12,9 @@ import {
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { supabase } from '../../src/lib/supabase';
+import { registerUser } from '../../src/services/authService';
 import { colors, metrics } from '../../src/constants/theme';
 import AuthTopBar from '../../src/components/AuthTopBar';
-import { registerUser } from '../../src/services/authService';
 
 export default function RegisterScreen() {
   const [form, setForm] = useState({
@@ -29,15 +27,29 @@ export default function RegisterScreen() {
     birth_date: '',
   });
 
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    birth_date: '',
+    email: '',
+    password: '',
+    referral_code: '',
+    common: '',
+  });
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   function updateField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }));
 
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (errors[name] || errors.common) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: '',
+        common: '',
+      }));
     }
   }
 
@@ -57,46 +69,103 @@ export default function RegisterScreen() {
       e.birth_date = 'Дата народження некоректна';
     }
 
-    if (!form.email.includes('@')) e.email = 'Невірний email';
+    const email = form.email.trim().toLowerCase();
+    if (!validateEmail(email)) e.email = 'Невірний email';
+
     if (form.password.length < 6) e.password = 'Мінімум 6 символів';
 
-    setErrors(e);
+    setErrors((prev) => ({
+      ...prev,
+      first_name: e.first_name || '',
+      last_name: e.last_name || '',
+      phone: e.phone || '',
+      birth_date: e.birth_date || '',
+      email: e.email || '',
+      password: e.password || '',
+      common: '',
+    }));
 
     return {
       valid: Object.keys(e).length === 0,
       phone,
       birth,
+      email,
     };
   }
 
   async function handleRegister() {
-    const { valid, phone, birth } = validate();
+    if (loading) return;
+
+    const { valid, phone, birth, email } = validate();
     if (!valid) return;
 
     try {
       setLoading(true);
 
       const { error } = await registerUser({
-  email: form.email.trim().toLowerCase(),
-  password: form.password,
-  phone,
-  firstName: form.first_name.trim(),
-  lastName: form.last_name.trim(),
-  referralCode: form.referral_code.trim(),
-});
+        email,
+        password: form.password,
+        phone,
+        firstName: form.first_name.trim(),
+        lastName: form.last_name.trim(),
+        referralCode: form.referral_code.trim(),
+        birthDate: birth,
+      });
 
       if (error) {
-        Alert.alert('Помилка', error.message || 'Не вдалося створити акаунт');
+        const message = String(error.message || '').toLowerCase();
+
+        if (
+          message.includes('already registered') ||
+          message.includes('user already registered') ||
+          message.includes('already been registered') ||
+          message.includes('email address is already registered') ||
+          message.includes('duplicate')
+        ) {
+          setErrors((prev) => ({
+            ...prev,
+            email: 'Такий користувач вже зареєстрований',
+            common: 'Такий користувач вже зареєстрований',
+          }));
+          return;
+        }
+
+        if (message.includes('реферальний код не знайдено')) {
+          setErrors((prev) => ({
+            ...prev,
+            referral_code: 'Реферальний код не знайдено',
+            common: '',
+          }));
+          return;
+        }
+
+        if (message.includes('too many requests') || message.includes('429')) {
+          setErrors((prev) => ({
+            ...prev,
+            common: 'Забагато спроб реєстрації. Зачекайте трохи та спробуйте ще раз.',
+          }));
+          return;
+        }
+
+        setErrors((prev) => ({
+          ...prev,
+          common: error.message || 'Не вдалося зареєструватися',
+        }));
         return;
       }
 
-      Alert.alert(
-        'Успіх',
-        'Акаунт створено. Перевірте email для підтвердження реєстрації.',
-      );
-      router.replace('/auth/login');
+      router.replace({
+        pathname: '/auth/login',
+        params: {
+          registered: '1',
+          email,
+        },
+      });
     } catch (e) {
-      Alert.alert('Помилка', e?.message || 'Щось пішло не так');
+      setErrors((prev) => ({
+        ...prev,
+        common: e?.message || 'Щось пішло не так',
+      }));
     } finally {
       setLoading(false);
     }
@@ -206,9 +275,13 @@ export default function RegisterScreen() {
             <Input
               label="Реферальний код"
               value={form.referral_code}
-              onChange={(v) => updateField('referral_code', v)}
+              onChange={(v) => updateField('referral_code', v.toUpperCase())}
+              error={errors.referral_code}
               placeholder="Необовʼязково"
+              autoCapitalize="characters"
             />
+
+            {!!errors.common && <Text style={styles.errorText}>{errors.common}</Text>}
 
             <Pressable
               style={[styles.button, loading && styles.buttonDisabled]}
@@ -258,6 +331,10 @@ function Input({
       {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
+}
+
+function validateEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
 function normalizePhone(phone) {

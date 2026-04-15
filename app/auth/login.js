@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Alert,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -8,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { loginUser } from '../../src/services/authService';
 import { validateEmail } from '../../src/utils/validation';
@@ -16,11 +15,15 @@ import { colors, metrics } from '../../src/constants/theme';
 import AuthTopBar from '../../src/components/AuthTopBar';
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [successText, setSuccessText] = useState('');
 
   const [errors, setErrors] = useState({
     email: '',
@@ -28,27 +31,38 @@ export default function LoginScreen() {
     common: '',
   });
 
+  useEffect(() => {
+    if (params?.registered === '1') {
+      setSuccessText('Ви зареєстровані. Перейдіть на вашу почту для підтвердження.');
+      if (typeof params?.email === 'string') {
+        setEmail(params.email);
+      }
+    }
+  }, [params]);
+
   function updateEmail(value) {
     setEmail(value);
 
-    if (errors.email || errors.common) {
+    if (errors.email || errors.common || successText) {
       setErrors((prev) => ({
         ...prev,
         email: '',
         common: '',
       }));
+      setSuccessText('');
     }
   }
 
   function updatePassword(value) {
     setPassword(value);
 
-    if (errors.password || errors.common) {
+    if (errors.password || errors.common || successText) {
       setErrors((prev) => ({
         ...prev,
         password: '',
         common: '',
       }));
+      setSuccessText('');
     }
   }
 
@@ -114,6 +128,8 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          {!!successText && <Text style={styles.successText}>{successText}</Text>}
+
           <View>
             <TextInput
               style={[styles.input, !!errors.email && styles.inputError]}
@@ -154,6 +170,8 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{errors.password}</Text>
             )}
           </View>
+
+          {!!errors.common && <Text style={styles.errorText}>{errors.common}</Text>}
 
           <Pressable
             style={styles.forgotWrap}
@@ -247,6 +265,11 @@ const styles = StyleSheet.create({
     color: colors.cherry,
     fontSize: 12,
     marginTop: 6,
+  },
+  successText: {
+    color: colors.green,
+    fontSize: 13,
+    lineHeight: 20,
   },
   forgotWrap: {
     alignSelf: 'flex-end',
