@@ -23,6 +23,9 @@ export default function ProfileEditScreen() {
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
 
+  const [birthDate, setBirthDate] = useState('');
+  const [canEditBirthDate, setCanEditBirthDate] = useState(false);
+
   useEffect(() => {
     bootstrap();
   }, []);
@@ -41,7 +44,7 @@ export default function ProfileEditScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('first_name, last_name, phone')
+        .select('first_name, last_name, phone, birth_date')
         .eq('id', id)
         .maybeSingle();
 
@@ -50,6 +53,10 @@ export default function ProfileEditScreen() {
       setFirstName(data?.first_name || '');
       setLastName(data?.last_name || '');
       setPhone(data?.phone || '');
+
+      const existingBirthDate = data?.birth_date || '';
+      setBirthDate(existingBirthDate);
+      setCanEditBirthDate(!existingBirthDate);
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося завантажити профіль');
       router.replace('/profile');
@@ -58,17 +65,46 @@ export default function ProfileEditScreen() {
     }
   }
 
+  function isValidBirthDate(value) {
+    if (!value) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const today = new Date();
+    if (date > today) return false;
+
+    return true;
+  }
+
   async function handleSave() {
     try {
       setSaving(true);
 
+      const payload = {
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        phone: phone.trim() || null,
+      };
+
+      if (canEditBirthDate) {
+        const trimmedBirthDate = birthDate.trim();
+
+        if (trimmedBirthDate) {
+          if (!isValidBirthDate(trimmedBirthDate)) {
+            Alert.alert('Помилка', 'Дата народження має бути у форматі YYYY-MM-DD');
+            setSaving(false);
+            return;
+          }
+
+          payload.birth_date = trimmedBirthDate;
+        }
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          phone: phone.trim() || null,
-        })
+        .update(payload)
         .eq('id', userId);
 
       if (error) throw error;
@@ -129,6 +165,22 @@ export default function ProfileEditScreen() {
           keyboardType="phone-pad"
         />
 
+        {canEditBirthDate ? (
+          <>
+            <Text style={styles.label}>Дата народження</Text>
+            <TextInput
+              style={styles.input}
+              value={birthDate}
+              onChangeText={setBirthDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={styles.hint}>
+              Дату народження можна вказати лише один раз.
+            </Text>
+          </>
+        ) : null}
+
         <Pressable style={styles.saveButton} onPress={handleSave} disabled={saving}>
           <Text style={styles.saveButtonText}>
             {saving ? 'Збереження...' : 'Зберегти'}
@@ -177,6 +229,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingHorizontal: 14,
     fontSize: 16,
+  },
+  hint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 8,
   },
   saveButton: {
     marginTop: 24,
