@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../src/lib/supabase';
 import { colors } from '../../src/constants/theme';
+import BirthdayRewardGate from '../../src/components/BirthdayRewardGate';
 
 function HeaderBrand() {
   return (
@@ -101,90 +102,98 @@ function HeaderBeans() {
 
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: colors.bg,
-          height: 86,
-        },
-        headerShadowVisible: false,
-        headerTitle: () => <HeaderBrand />,
-        headerTitleAlign: 'center',
-        headerLeft: () => (
-          <View style={styles.headerLeftWrap}>
-            <HeaderLogo />
-          </View>
-        ),
-        headerRight: () => (
-          <View style={styles.headerRightWrap}>
-            <HeaderBeans />
-          </View>
-        ),
-        tabBarStyle: {
-          backgroundColor: colors.bg,
-          borderTopColor: colors.white08,
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 10,
-        },
-        tabBarActiveTintColor: colors.cherry,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-        },
-        sceneStyle: {
-          backgroundColor: colors.bg,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="menu"
-        options={{
-          title: 'Меню',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="restaurant-menu" size={size} color={color} />
+    <>
+      <Tabs
+        screenOptions={{
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.bg,
+            height: 86,
+          },
+          headerShadowVisible: false,
+          headerTitle: () => <HeaderBrand />,
+          headerTitleAlign: 'center',
+          headerLeft: () => (
+            <View style={styles.headerLeftWrap}>
+              <HeaderLogo />
+            </View>
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="loyalty"
-        options={{
-          title: 'Лояльність',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="qr-code-scanner" size={size} color={color} />
+          headerRight: () => (
+            <View style={styles.headerRightWrap}>
+              <HeaderBeans />
+            </View>
           ),
+          tabBarStyle: {
+            backgroundColor: colors.bg,
+            borderTopColor: colors.white08,
+            height: 72,
+            paddingTop: 8,
+            paddingBottom: 10,
+          },
+          tabBarActiveTintColor: colors.cherry,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '600',
+          },
+          sceneStyle: {
+            backgroundColor: colors.bg,
+          },
         }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'Історія',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="history" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="news"
-        options={{
-          title: 'Новини',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="campaign" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Профіль',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="person-outline" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="menu"
+          options={{
+            title: 'Меню',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="restaurant-menu" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="loyalty"
+          options={{
+            title: 'Лояльність',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="qr-code-scanner" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="history"
+          options={{
+            title: 'Історія',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="history" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="news"
+          options={{
+            title: 'Новини',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="campaign" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Профіль',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="person-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      </Tabs>
+
+      <BirthdayRewardGate />
+    </>
   );
 }
 

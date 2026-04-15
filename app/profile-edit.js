@@ -22,7 +22,6 @@ export default function ProfileEditScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-
   const [birthDate, setBirthDate] = useState('');
   const [canEditBirthDate, setCanEditBirthDate] = useState(false);
 
@@ -55,7 +54,7 @@ export default function ProfileEditScreen() {
       setPhone(data?.phone || '');
 
       const existingBirthDate = data?.birth_date || '';
-      setBirthDate(existingBirthDate);
+      setBirthDate(existingBirthDate ? formatBirthDateToUi(existingBirthDate) : '');
       setCanEditBirthDate(!existingBirthDate);
     } catch (e) {
       Alert.alert('Помилка', e?.message || 'Не вдалося завантажити профіль');
@@ -65,19 +64,6 @@ export default function ProfileEditScreen() {
     }
   }
 
-  function isValidBirthDate(value) {
-    if (!value) return false;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-
-    const date = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(date.getTime())) return false;
-
-    const today = new Date();
-    if (date > today) return false;
-
-    return true;
-  }
-
   async function handleSave() {
     try {
       setSaving(true);
@@ -85,21 +71,25 @@ export default function ProfileEditScreen() {
       const payload = {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
-        phone: phone.trim() || null,
+        phone: normalizePhone(phone) || phone.trim() || null,
       };
 
       if (canEditBirthDate) {
-        const trimmedBirthDate = birthDate.trim();
+        const normalizedBirthDate = normalizeBirthDate(birthDate);
 
-        if (trimmedBirthDate) {
-          if (!isValidBirthDate(trimmedBirthDate)) {
-            Alert.alert('Помилка', 'Дата народження має бути у форматі YYYY-MM-DD');
-            setSaving(false);
-            return;
-          }
-
-          payload.birth_date = trimmedBirthDate;
+        if (!normalizedBirthDate) {
+          Alert.alert('Помилка', 'Дата народження має бути у форматі 27.07.1996');
+          setSaving(false);
+          return;
         }
+
+        if (!isValidPastDate(normalizedBirthDate)) {
+          Alert.alert('Помилка', 'Дата народження некоректна');
+          setSaving(false);
+          return;
+        }
+
+        payload.birth_date = normalizedBirthDate;
       }
 
       const { error } = await supabase
@@ -171,9 +161,10 @@ export default function ProfileEditScreen() {
             <TextInput
               style={styles.input}
               value={birthDate}
-              onChangeText={setBirthDate}
-              placeholder="YYYY-MM-DD"
+              onChangeText={(v) => setBirthDate(maskDate(v))}
+              placeholder="27.07.1996"
               placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
             />
             <Text style={styles.hint}>
               Дату народження можна вказати лише один раз.
@@ -193,6 +184,58 @@ export default function ProfileEditScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function maskDate(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+}
+
+function normalizeBirthDate(value) {
+  const match = String(value || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return null;
+
+  const [, d, m, y] = match;
+  return `${y}-${m}-${d}`;
+}
+
+function formatBirthDateToUi(value) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+  const [y, m, d] = value.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function isValidPastDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const [y, m, d] = value.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== m - 1 ||
+    dt.getDate() !== d
+  ) {
+    return false;
+  }
+
+  const today = new Date();
+  dt.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  return dt <= today;
+}
+
+function normalizePhone(phone) {
+  const p = String(phone || '').replace(/\D/g, '');
+
+  if (p.startsWith('380') && p.length === 12) return `+${p}`;
+  if (p.startsWith('0') && p.length === 10) return `+38${p}`;
+  if (p.startsWith('80') && p.length === 11) return `+3${p}`;
+  return null;
 }
 
 const styles = StyleSheet.create({

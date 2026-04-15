@@ -50,7 +50,11 @@ export default function RegisterScreen() {
     if (!phone) e.phone = 'Формат телефону неправильний';
 
     const birth = normalizeBirthDate(form.birth_date);
-    if (!birth) e.birth_date = 'Формат: 27.07.1996';
+    if (!birth) {
+      e.birth_date = 'Введіть дату у форматі 27.07.1996';
+    } else if (!isValidPastDate(birth)) {
+      e.birth_date = 'Дата народження некоректна';
+    }
 
     if (!form.email.includes('@')) e.email = 'Невірний email';
     if (form.password.length < 6) e.password = 'Мінімум 6 символів';
@@ -86,14 +90,17 @@ export default function RegisterScreen() {
       });
 
       if (error) {
-        Alert.alert('Помилка', error.message);
+        Alert.alert('Помилка', error.message || 'Не вдалося створити акаунт');
         return;
       }
 
-      Alert.alert('Успіх', 'Перевір email для підтвердження');
+      Alert.alert(
+        'Успіх',
+        'Акаунт створено. Перевірте email для підтвердження реєстрації.',
+      );
       router.replace('/auth/login');
     } catch (e) {
-      Alert.alert('Помилка', e.message || 'Щось пішло не так');
+      Alert.alert('Помилка', e?.message || 'Щось пішло не так');
     } finally {
       setLoading(false);
     }
@@ -282,36 +289,52 @@ function normalizeBirthDate(value) {
   return `${y}-${m}-${d}`;
 }
 
+function isValidPastDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const [y, m, d] = value.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+
+  if (
+    dt.getFullYear() !== y ||
+    dt.getMonth() !== m - 1 ||
+    dt.getDate() !== d
+  ) {
+    return false;
+  }
+
+  const today = new Date();
+  dt.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  return dt <= today;
+}
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
   },
-
   scrollContent: {
     padding: metrics.screenPadding,
     paddingBottom: 120,
     flexGrow: 1,
     justifyContent: 'center',
   },
-
   hero: {
     marginBottom: 20,
   },
-
   title: {
     color: colors.text,
     fontSize: 32,
     fontWeight: '800',
   },
-
   subtitle: {
     color: colors.textMuted,
     fontSize: 15,
     lineHeight: 22,
     marginTop: 8,
   },
-
   form: {
     backgroundColor: colors.card,
     borderRadius: metrics.radiusLg,
@@ -320,17 +343,14 @@ const styles = StyleSheet.create({
     borderColor: colors.white08,
     gap: 14,
   },
-
   inputWrap: {
     gap: 6,
   },
-
   label: {
     color: colors.textSoft,
     fontSize: 13,
     fontWeight: '600',
   },
-
   input: {
     minHeight: 52,
     borderRadius: 14,
@@ -341,7 +361,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
   },
-
   passwordWrap: {
     minHeight: 52,
     borderRadius: 14,
@@ -353,29 +372,24 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     paddingRight: 8,
   },
-
   passwordInput: {
     flex: 1,
     color: colors.text,
     fontSize: 16,
   },
-
   eyeButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   inputErrorBorder: {
     borderColor: colors.cherry,
   },
-
   errorText: {
     color: colors.cherry,
     fontSize: 12,
   },
-
   button: {
     marginTop: 6,
     minHeight: 54,
@@ -384,17 +398,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   buttonDisabled: {
     opacity: 0.7,
   },
-
   buttonText: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '800',
   },
-
   link: {
     textAlign: 'center',
     color: colors.textSoft,
