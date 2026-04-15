@@ -111,7 +111,7 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          title: "analytics",
+          title: "Аналітика",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="bar-chart" size={size} color={color} />
           ),
