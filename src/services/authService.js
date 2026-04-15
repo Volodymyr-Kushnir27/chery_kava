@@ -30,6 +30,7 @@ export async function registerUser({
   firstName,
   lastName,
   referralCode,
+  birthDate,
 }) {
   const cleanReferral = String(referralCode || '').trim().toUpperCase();
 
@@ -63,6 +64,7 @@ export async function registerUser({
         phone,
         first_name: firstName,
         last_name: lastName,
+        birth_date: birthDate,
       },
     },
   });
@@ -78,6 +80,7 @@ export async function registerUser({
       phone,
       first_name: firstName,
       last_name: lastName,
+      birth_date: birthDate || null,
     };
 
     if (referredByUserId) {

@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { colors, metrics } from '../../src/constants/theme';
 import AuthTopBar from '../../src/components/AuthTopBar';
+import { registerUser } from '../../src/services/authService';
 
 export default function RegisterScreen() {
   const [form, setForm] = useState({
@@ -75,19 +76,14 @@ export default function RegisterScreen() {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signUp({
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-        options: {
-          data: {
-            first_name: form.first_name.trim(),
-            last_name: form.last_name.trim(),
-            phone,
-            birth_date: birth,
-            referral_code: form.referral_code.trim() || null,
-          },
-        },
-      });
+      const { error } = await registerUser({
+  email: form.email.trim().toLowerCase(),
+  password: form.password,
+  phone,
+  firstName: form.first_name.trim(),
+  lastName: form.last_name.trim(),
+  referralCode: form.referral_code.trim(),
+});
 
       if (error) {
         Alert.alert('Помилка', error.message || 'Не вдалося створити акаунт');
