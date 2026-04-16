@@ -1,17 +1,63 @@
 import { supabase } from '../lib/supabase';
 
+function mapAuthErrorMessage(message = '') {
+  const msg = String(message).toLowerCase();
+
+  if (
+    msg.includes('user already registered') ||
+    msg.includes('already registered') ||
+    msg.includes('email address not authorized')
+  ) {
+    return 'Такий користувач вже зареєстрований';
+  }
+
+  if (msg.includes('invalid login credentials')) {
+    return 'Неправильно введено логін або пароль';
+  }
+
+  if (msg.includes('email not confirmed')) {
+    return 'Пошта ще не підтверджена';
+  }
+
+  if (msg.includes('too many requests')) {
+    return 'Забагато спроб. Спробуйте трохи пізніше';
+  }
+
+  return message || 'Сталася помилка';
+}
+
 export async function loginUser({ email, password }) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
-  return { data, error };
+  if (error) {
+    return {
+      data: null,
+      error: {
+        ...error,
+        message: mapAuthErrorMessage(error.message),
+      },
+    };
+  }
+
+  return { data, error: null };
 }
 
 export async function logoutUser() {
   const { error } = await supabase.auth.signOut();
-  return { error };
+
+  if (error) {
+    return {
+      error: {
+        ...error,
+        message: mapAuthErrorMessage(error.message),
+      },
+    };
+  }
+
+  return { error: null };
 }
 
 export async function resendVerification(email) {
@@ -20,7 +66,17 @@ export async function resendVerification(email) {
     email,
   });
 
-  return { data, error };
+  if (error) {
+    return {
+      data: null,
+      error: {
+        ...error,
+        message: mapAuthErrorMessage(error.message),
+      },
+    };
+  }
+
+  return { data, error: null };
 }
 
 export async function registerUser({
@@ -29,72 +85,61 @@ export async function registerUser({
   phone,
   firstName,
   lastName,
-  referralCode,
   birthDate,
+  referralCode,
 }) {
-  const cleanReferral = String(referralCode || '').trim().toUpperCase();
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanReferralCode = String(referralCode || '').trim().toUpperCase();
 
-  let referredByUserId = null;
-
-  if (cleanReferral) {
-    const { data: referralProfile, error: referralError } = await supabase
-      .from('profiles')
-      .select('id, referral_code')
-      .eq('referral_code', cleanReferral)
-      .maybeSingle();
+  if (cleanReferralCode) {
+    const { data: referralCheck, error: referralError } = await supabase.rpc(
+      'validate_referral_code',
+      { p_code: cleanReferralCode }
+    );
 
     if (referralError) {
-      return { error: referralError };
-    }
-
-    if (!referralProfile) {
       return {
-        error: { message: 'Реферальний код не знайдено' },
+        data: null,
+        error: {
+          ...referralError,
+          message: referralError.message || 'Не вдалося перевірити реферальний код',
+        },
       };
     }
 
-    referredByUserId = referralProfile.id;
+    if (!referralCheck?.valid) {
+      return {
+        data: null,
+        error: {
+          message: referralCheck?.message || 'Реферальний код не знайдено',
+          field: 'referral_code',
+        },
+      };
+    }
   }
 
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: cleanEmail,
     password,
     options: {
       data: {
-        phone,
         first_name: firstName,
         last_name: lastName,
+        phone,
         birth_date: birthDate,
+        referral_code: cleanReferralCode || null,
       },
     },
   });
 
   if (error) {
-    return { data, error };
-  }
-
-  const userId = data?.user?.id;
-
-  if (userId) {
-    const updatePayload = {
-      phone,
-      first_name: firstName,
-      last_name: lastName,
-      birth_date: birthDate || null,
+    return {
+      data: null,
+      error: {
+        ...error,
+        message: mapAuthErrorMessage(error.message),
+      },
     };
-
-    if (referredByUserId) {
-      updatePayload.referred_by_user_id = referredByUserId;
-    }
-
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', userId);
-
-    if (updateError) {
-      return { data, error: updateError };
-    }
   }
 
   return { data, error: null };
